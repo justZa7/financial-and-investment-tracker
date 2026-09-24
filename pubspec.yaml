@@ -23,8 +23,12 @@ dependencies:
   # Generate ID unik untuk entitas lokal (transaksi, aset, utang, dll)
   uuid: ^4.4.0
 
-  
+  # http untuk fetching API
   http: ^1.2.0
+
+  # icon
+  flutter_launcher_icons: "^0.13.1"
+
 
 dev_dependencies:
   flutter_test:
@@ -33,3 +37,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  image_path: "assets/icon/fni-logo.png"
+  android: true
+  ios: true

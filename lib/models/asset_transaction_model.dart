@@ -1,6 +1,6 @@
 import 'asset_holding_model.dart';
 
-enum AssetTxType { buy, sell, dividend }
+enum AssetTxType { buy, sell }
 
 class AssetTransactionModel {
   final String id;

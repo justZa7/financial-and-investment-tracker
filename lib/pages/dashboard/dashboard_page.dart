@@ -41,189 +41,168 @@ class DashboardPage extends StatelessWidget {
         .toList();
 
     return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () async {
-          await context.read<PortfolioProvider>().autoUpdatePrices();
-        },
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              floating: true,
-              title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-              actions: [
-                Consumer<PortfolioProvider>(
-                  builder: (context, portfolio, _) {
-                    if (portfolio.isUpdatingPrices) {
-                      return const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.indigo),
-                        ),
-                      );
-                    }
-                    return IconButton(
-                      tooltip: 'Update Harga Otomatis',
-                      icon: const Icon(Icons.refresh_rounded),
-                      onPressed: () => portfolio.autoUpdatePrices(),
-                    );
-                  },
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _netWorthCard(context, netWorth, cashFlow, portfolio, debt),
-                  const SizedBox(height: 16),
+      child: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            floating: true,
+            title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+            actions: [
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _netWorthCard(context, netWorth, cashFlow, portfolio, debt),
+                const SizedBox(height: 16),
 
-                  // Savings Rate & Annual Return
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SummaryCard(
-                          title: 'Savings Rate',
-                          value: '${savingsRate.toStringAsFixed(1)}%',
-                          subtitle: 'Bulan ini',
-                          icon: Icons.savings_outlined,
-                          color: Colors.teal,
-                          valuePositive: savingsRate >= 0,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SummaryCard(
-                          title: 'Annual Return',
-                          value: AppFormatters.percent(portfolio.annualReturnPercent),
-                          subtitle: 'Seluruh portofolio',
-                          icon: Icons.trending_up_rounded,
-                          color: Colors.indigo,
-                          valuePositive: portfolio.annualReturnPercent >= 0,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // List Aset per kelas
-                  Text('Aset Anda', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 128,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        CashSummaryCard(value: cashFlow.totalCashBalance),
-                        const SizedBox(width: 10),
-                        for (final cls in AssetClass.values)
-                          if (portfolio.valueByClass(cls) > 0) ...[
-                            AssetClassCard(assetClass: cls, value: portfolio.valueByClass(cls)),
-                            const SizedBox(width: 10),
-                          ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Rata-rata income/expense
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SummaryCard(
-                          title: 'Rata-rata Pemasukan',
-                          value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyIncome),
-                          subtitle: 'per bulan',
-                          icon: Icons.arrow_downward_rounded,
-                          color: Colors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: SummaryCard(
-                          title: 'Rata-rata Pengeluaran',
-                          value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyExpense),
-                          subtitle: 'per bulan',
-                          icon: Icons.arrow_upward_rounded,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Pie chart alokasi
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Alokasi Antar Aset',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 14),
-                          AllocationPieChart(
-                            allocation: portfolio.allocation,
-                            cashValue: cashFlow.totalCashBalance,
-                          ),
-                        ],
+                // Savings Rate & Annual Return
+                Row(
+                  children: [
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Savings Rate',
+                        value: '${savingsRate.toStringAsFixed(1)}%',
+                        subtitle: 'Bulan ini',
+                        icon: Icons.savings_outlined,
+                        color: Colors.teal,
+                        valuePositive: savingsRate >= 0,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Line chart performance
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Grafik Performance',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 10),
-                          PerformanceLineChart(
-                            labels: trendLabels,
-                            portfolioValues: portfolioTrend,
-                            incomeValues: monthlyTrend.map((m) => m.income).toList(),
-                            expenseValues: monthlyTrend.map((m) => m.expense).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Quick alert utang/piutang
-                  if (debt.dueSoonAlerts.isNotEmpty) ...[
-                    Row(
-                      children: [
-                        Text('Peringatan Jatuh Tempo',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(width: 6),
-                        Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange.shade700),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 118,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: debt.dueSoonAlerts.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (context, i) => DebtAlertCard(debt: debt.dueSoonAlerts[i]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Annual Return',
+                        value: AppFormatters.percent(portfolio.annualReturnPercent),
+                        subtitle: 'Seluruh portofolio',
+                        icon: Icons.trending_up_rounded,
+                        color: Colors.indigo,
+                        valuePositive: portfolio.annualReturnPercent >= 0,
                       ),
                     ),
                   ],
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
+                ),
+                const SizedBox(height: 20),
 
+                // List Aset per kelas
+                Text('Aset Anda', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 128,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      CashSummaryCard(value: cashFlow.totalCashBalance),
+                      const SizedBox(width: 10),
+                      for (final cls in AssetClass.values)
+                        if (portfolio.valueByClass(cls) > 0) ...[
+                          AssetClassCard(assetClass: cls, value: portfolio.valueByClass(cls)),
+                          const SizedBox(width: 10),
+                        ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Rata-rata income/expense
+                Row(
+                  children: [
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Rata-rata Pemasukan',
+                        value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyIncome),
+                        subtitle: 'per bulan',
+                        icon: Icons.arrow_downward_rounded,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SummaryCard(
+                        title: 'Rata-rata Pengeluaran',
+                        value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyExpense),
+                        subtitle: 'per bulan',
+                        icon: Icons.arrow_upward_rounded,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Pie chart alokasi
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Alokasi Antar Aset',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 14),
+                        AllocationPieChart(
+                          allocation: portfolio.allocation,
+                          cashValue: cashFlow.totalCashBalance,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Line chart performance
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Grafik Performance',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        PerformanceLineChart(
+                          labels: trendLabels,
+                          portfolioValues: portfolioTrend,
+                          incomeValues: monthlyTrend.map((m) => m.income).toList(),
+                          expenseValues: monthlyTrend.map((m) => m.expense).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Quick alert utang/piutang
+                if (debt.dueSoonAlerts.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Text('Peringatan Jatuh Tempo',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 6),
+                      Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange.shade700),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 118,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: debt.dueSoonAlerts.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (context, i) => DebtAlertCard(debt: debt.dueSoonAlerts[i]),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

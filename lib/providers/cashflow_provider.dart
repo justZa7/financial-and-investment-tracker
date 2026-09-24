@@ -19,7 +19,6 @@ class CashFlowProvider extends ChangeNotifier {
     // Tidak ada satupun transaksi kas yang di-seed -> mulai dari nol.
     _categories.addAll(MockDataService.categories());
     _accounts.addAll(MockDataService.defaultAccounts());
-    // _transactions.addAll(MockDataService.cashTransactions(accounts: accounts, categories: categories));
   }
 
   List<AccountModel> get accounts => List.unmodifiable(_accounts);

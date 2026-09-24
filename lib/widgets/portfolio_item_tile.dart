@@ -105,6 +105,25 @@ class PortfolioItemTile extends StatelessWidget {
                 ),
               ),
             ],
+            if (holding.assetClass == AssetClass.moneyMarket && holding.annualYieldPercent > 0) ...[
+              const Divider(height: 20),
+              Row(
+                children: [
+                  Icon(Icons.percent_rounded, size: 14, color: Colors.teal.shade700),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Yield Tahunan: ${AppFormatters.decimal(holding.annualYieldPercent, fraction: 2)}%',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Estimasi Yield Gain: ${AppFormatters.rupiahSigned(holding.estimatedYieldGain)}'
+                '${holding.firstBuyDate != null ? ' (sejak ${AppFormatters.date(holding.firstBuyDate!)})' : ''}',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ],
           ],
         ),
       ),

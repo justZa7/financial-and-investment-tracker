@@ -4,11 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/asset_holding_model.dart';
 import '../models/asset_transaction_model.dart';
 import '../services/calculation_service.dart';
-
-// mock data
-import '../services/mock_data_service.dart';
-
-import '../services/market_service.dart';
+import '../services/market_data_service.dart';
 
 const _uuid = Uuid();
 
@@ -16,34 +12,9 @@ class PortfolioProvider extends ChangeNotifier {
   final Map<String, AssetHoldingModel> _holdings = {}; // key: ticker
   final List<AssetTransactionModel> _transactions = [];
 
-  bool _isUpdatingPrices = false;
-  bool get isUpdatingPrices => _isUpdatingPrices;
-
   // Tidak ada data yang di-seed -> portofolio mulai kosong.
   // User membangun holding-nya sendiri lewat buyAsset()/sellAsset()
   // dari form Input (Tab Investasi).
-
-  // mock data
-  // PortfolioProvider () {
-  //   _seed();
-  // }
-
-  // // seed untuk mock
-  // void _seed() {
-  //   for (final seed in MockDataService.assetTransactionSeeds()) {
-  //     if (seed.isBuy) {
-  //       buyAsset(ticker: seed.ticker, name: seed.name, assetClass: seed.assetClass,
-  //           qty: seed.qty, pricePerUnit: seed.price, fee: seed.fee, date: seed.date);
-  //     } else {
-  //       sellAsset(ticker: seed.ticker, qty: seed.qty,
-  //           pricePerUnit: seed.price, fee: seed.fee, date: seed.date);
-  //     }
-  //   }
-  //   final latest = MockDataService.latestMarketPrices();
-  //   for (final entry in latest.entries) {
-  //     autoUpdatePrices(entry.key, entry.value);
-  //   }
-  // }
 
   List<AssetHoldingModel> get holdings =>
       List.unmodifiable(_holdings.values.where((h) => h.qty > 0.0000001 || h.realizedGainLoss != 0));
@@ -70,6 +41,10 @@ class PortfolioProvider extends ChangeNotifier {
       _holdings.values.fold(0.0, (sum, h) => sum + h.realizedGainLoss);
 
   double get totalGainLoss => totalUnrealizedGainLoss + totalRealizedGainLoss;
+
+  /// Total estimasi yield gain dari seluruh holding Reksadana Pasar Uang
+  double get totalYieldGain =>
+      activeHoldings.fold(0.0, (sum, h) => sum + h.estimatedYieldGain);
 
   /// Annual Return (%) portofolio keseluruhan
   double get annualReturnPercent => CalculationService.annualReturnPercent(
@@ -117,6 +92,7 @@ class PortfolioProvider extends ChangeNotifier {
     required double pricePerUnit,
     double fee = 0,
     required DateTime date,
+    double annualYieldPercent = 0,
   }) {
     final key = ticker.toUpperCase();
     final existing = _holdings[key];
@@ -130,6 +106,8 @@ class PortfolioProvider extends ChangeNotifier {
         qty: qty,
         avgBuyPrice: pricePerUnit,
         marketPrice: pricePerUnit,
+        annualYieldPercent: annualYieldPercent,
+        firstBuyDate: date,
       );
     } else {
       final newAvg = CalculationService.weightedAveragePrice(
@@ -140,6 +118,15 @@ class PortfolioProvider extends ChangeNotifier {
       );
       existing.qty += qty;
       existing.avgBuyPrice = newAvg;
+      // Update yield tahunan kalau user isi nilai baru (misal manajer investasi
+      // mengubah rate yield produknya), pertahankan firstBuyDate paling awal.
+      if (annualYieldPercent > 0) {
+        existing.annualYieldPercent = annualYieldPercent;
+      }
+      existing.firstBuyDate ??= date;
+      if (date.isBefore(existing.firstBuyDate!)) {
+        existing.firstBuyDate = date;
+      }
     }
 
     _transactions.add(AssetTransactionModel(
@@ -201,68 +188,26 @@ class PortfolioProvider extends ChangeNotifier {
   }
 
   /// Update harga pasar manual -> memicu re-render nilai portofolio & chart
-  Future<void> autoUpdatePrices([String? ticker, double? price]) async {
-    _isUpdatingPrices = true;
-    notifyListeners();
-
-    if (ticker != null && price != null) {
-      final holding = _holdings[ticker.toUpperCase()];
-      if (holding != null && price > 0) {
-        holding.marketPrice = price;
-      }
-      _isUpdatingPrices = false;
-      notifyListeners();
-      return;
-    }
-
-    for (final holding in _holdings.values) {
-      double? newPrice;
-
-      if (holding.assetClass == AssetClass.crypto) {
-        // Fetch Crypto via CoinGecko (menggunakan holding.ticker)
-        newPrice = await MarketService.fetchCryptoPriceIDR(holding.ticker);
-      } else if (holding.assetClass == AssetClass.equity) {
-        // Fetch Saham IHSG via Yahoo Finance (menggunakan holding.ticker)
-        newPrice = await MarketService.fetchStockPriceIDR(holding.ticker);
-      }
-
-      // Jika berhasil mendapatkan harga baru dari API, perbarui marketPrice
-      if (newPrice != null && newPrice > 0) {
-        holding.marketPrice = newPrice;
-      }
-    }
-
-    _isUpdatingPrices = false;
-    notifyListeners(); // Otomatis mentrigger UI Dashboard & Portfolio untuk rebuild
-  }
-
-  void addYieldCash({
-    required String ticker,
-    required double amount, // Total nominal rupiah yield
-    required DateTime date,
-  }) {
+  void updateMarketPrice(String ticker, double newPrice) {
     final key = ticker.toUpperCase();
     final holding = _holdings[key];
+    if (holding != null) {
+      holding.marketPrice = newPrice;
+      notifyListeners();
+    }
+  }
 
-    if (holding == null) return;
-
-    // Tambahkan nominal yield ke realizedGainLoss sebagai keuntungan bersih
-    holding.realizedGainLoss += amount;
-
-    // Catat ke riwayat transaksi
-    _transactions.add(AssetTransactionModel(
-      id: _uuid.v4(),
-      assetId: holding.id,
-      ticker: key,
-      assetClass: holding.assetClass,
-      type: AssetTxType.dividend,
-      qty: 0,
-      pricePerUnit: 0,
-      fee: 0,
-      date: date,
-      realizedGainLoss: amount,
-    ));
-
-    notifyListeners();
+  /// Fetch harga pasar semua aset dari API publik (lihat MarketDataService
+  /// untuk detail dukungan per kelas aset). Hasil sukses langsung diterapkan
+  /// ke holding via updateMarketPrice(); hasil gagal dikembalikan apa adanya
+  /// supaya UI bisa menampilkan alasannya ke user.
+  Future<List<FetchPriceResult>> fetchMarketPricesFromApi() async {
+    final results = await MarketDataService.fetchAll(activeHoldings);
+    for (final r in results) {
+      if (r.success) {
+        updateMarketPrice(r.ticker, r.price!);
+      }
+    }
+    return results;
   }
 }

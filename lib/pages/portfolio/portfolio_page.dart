@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../models/asset_holding_model.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../services/market_data_service.dart';
+import '../../utils/currency_input_formatter.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/portfolio_item_tile.dart';
 
@@ -15,6 +17,7 @@ class PortfolioPage extends StatefulWidget {
 
 class _PortfolioPageState extends State<PortfolioPage> {
   AssetClass? _filter;
+  bool _isFetching = false;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +29,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
 
     return SafeArea(
       child: Scaffold(
-        backgroundColor: const Color.fromARGB(0, 230, 5, 5),
+        backgroundColor: Colors.transparent,
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _showUpdatePriceSheet(context, provider),
           icon: const Icon(Icons.price_change_outlined),
@@ -38,24 +41,16 @@ class _PortfolioPageState extends State<PortfolioPage> {
               floating: true,
               title: const Text('Portofolio', style: TextStyle(fontWeight: FontWeight.bold)),
               actions: [
-                Consumer<PortfolioProvider>(
-                  builder: (context, portfolio, _) {
-                    if (portfolio.isUpdatingPrices) {
-                      return const Padding(
-                        padding: EdgeInsets.all(12.0),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color.fromARGB(255, 32, 63, 239)),
-                        ),
-                      );
-                    }
-                    return IconButton(
-                      tooltip: 'Update Harga Otomatis',
-                      icon: const Icon(Icons.refresh_rounded),
-                      onPressed: () => portfolio.autoUpdatePrices(),
-                    );
-                  },
+                IconButton(
+                  tooltip: 'Fetch Harga dari API (Crypto & Saham)',
+                  onPressed: _isFetching ? null : () => _fetchFromApi(context, provider),
+                  icon: _isFetching
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cloud_sync_outlined),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -149,6 +144,16 @@ class _PortfolioPageState extends State<PortfolioPage> {
                 ),
               ],
             ),
+            if (provider.totalYieldGain > 0) ...[
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 14),
+              _statColumn(
+                'Estimasi Yield Gain (Reksadana Pasar Uang)',
+                AppFormatters.rupiahSigned(provider.totalYieldGain),
+                color: Colors.teal.shade700,
+              ),
+            ],
           ],
         ),
       ),
@@ -210,28 +215,87 @@ class _PortfolioPageState extends State<PortfolioPage> {
   }
 
   void _showUpdateSingleAsset(BuildContext context, PortfolioProvider provider, AssetHoldingModel holding) {
-    final ctrl = TextEditingController(text: holding.marketPrice.toString());
+    final ctrl = TextEditingController(text: holding.marketPrice.toStringAsFixed(0));
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Update Harga ${holding.ticker}'),
         content: TextField(
           controller: ctrl,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: TextInputType.number,
+          inputFormatters: [ThousandsSeparatorInputFormatter()],
           decoration: const InputDecoration(labelText: 'Harga pasar baru (Rp)'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
           FilledButton(
             onPressed: () {
-              final price = double.tryParse(ctrl.text.replaceAll(',', '.'));
-              if (price != null && price > 0) {
-                provider.autoUpdatePrices(holding.ticker, price);
+              final price = CurrencyInputHelper.unformatIdr(ctrl.text);
+              if (price > 0) {
+                provider.updateMarketPrice(holding.ticker, price);
               }
               Navigator.pop(context);
             },
             child: const Text('Simpan'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchFromApi(BuildContext context, PortfolioProvider provider) async {
+    if (provider.activeHoldings.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Belum ada aset di portofolio'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+
+    setState(() => _isFetching = true);
+    final results = await provider.fetchMarketPricesFromApi();
+    if (!mounted) return;
+    setState(() => _isFetching = false);
+
+    final success = results.where((r) => r.success).toList();
+    final failed = results.where((r) => !r.success).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hasil Fetch Harga dari API'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (success.isNotEmpty) ...[
+                  Text('Berhasil diperbarui (${success.length})',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  ...success.map((r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text('• ${r.ticker}: ${AppFormatters.rupiah(r.price!)}', style: const TextStyle(fontSize: 12)),
+                      )),
+                  const SizedBox(height: 10),
+                ],
+                if (failed.isNotEmpty) ...[
+                  Text('Tidak bisa diperbarui otomatis (${failed.length})',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade800, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  ...failed.map((r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text('• ${r.ticker}: ${r.error}',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      )),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup')),
         ],
       ),
     );
@@ -268,7 +332,7 @@ class _PriceEditRowState extends State<_PriceEditRow> {
             onSubmitted: (v) {
               final price = double.tryParse(v.replaceAll(',', '.'));
               if (price != null && price > 0) {
-                widget.provider.autoUpdatePrices(widget.holding.ticker, price);
+                widget.provider.updateMarketPrice(widget.holding.ticker, price);
               }
             },
           ),
@@ -278,7 +342,7 @@ class _PriceEditRowState extends State<_PriceEditRow> {
           onPressed: () {
             final price = double.tryParse(_ctrl.text.replaceAll(',', '.'));
             if (price != null && price > 0) {
-              widget.provider.autoUpdatePrices(widget.holding.ticker, price);
+              widget.provider.updateMarketPrice(widget.holding.ticker, price);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Harga ${widget.holding.ticker} diperbarui'), behavior: SnackBarBehavior.floating),
               );

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/asset_holding_model.dart';
@@ -7,9 +6,11 @@ import '../../models/cash_transaction_model.dart';
 import '../../models/debt_model.dart';
 import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
+import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
-import '../../utils/formatters.dart';
 import '../../utils/currency_input_formatter.dart';
+import '../../utils/formatters.dart';
+import '../../widgets/currency_amount_field.dart';
 
 enum _InputTab { cash, invest, debt }
 
@@ -78,16 +79,17 @@ class _CashFlowForm extends StatefulWidget {
 
 class _CashFlowFormState extends State<_CashFlowForm> {
   final _formKey = GlobalKey<FormState>();
+  final _amountFieldKey = GlobalKey<CurrencyAmountFieldState>();
   CashFlowType _flowType = CashFlowType.expense;
   String? _accountId;
   String? _categoryId;
-  final _amountCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   DateTime _date = DateTime.now();
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<CashFlowProvider>();
+    final exchangeRate = context.watch<ExchangeRateProvider>().rate;
     final categories = provider.categoriesFor(_flowType);
     _categoryId ??= categories.isNotEmpty ? categories.first.id : null;
     _accountId ??= provider.accounts.isNotEmpty ? provider.accounts.first.id : null;
@@ -114,7 +116,7 @@ class _CashFlowFormState extends State<_CashFlowForm> {
               const SizedBox(height: 16),
               _label('Akun'),
               DropdownButtonFormField<String>(
-                initialValue: _accountId,
+                value: _accountId,
                 items: provider.accounts
                     .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
                     .toList(),
@@ -123,22 +125,18 @@ class _CashFlowFormState extends State<_CashFlowForm> {
               const SizedBox(height: 14),
               _label('Kategori'),
               DropdownButtonFormField<String>(
-                initialValue: _categoryId,
+                value: _categoryId,
                 items: categories
                     .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                     .toList(),
                 onChanged: (v) => setState(() => _categoryId = v),
-              ),    
+              ),
               const SizedBox(height: 14),
-              _label('Nominal (Rp)'),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter()
-                ],
-                decoration: const InputDecoration(hintText: 'Contoh: 150000'),
+              CurrencyAmountField(
+                key: _amountFieldKey,
+                label: 'Nominal',
+                hint: 'Contoh: 150.000',
+                exchangeRate: exchangeRate,
                 validator: (v) => (v == null || v.isEmpty) ? 'Nominal wajib diisi' : null,
               ),
               const SizedBox(height: 14),
@@ -165,7 +163,7 @@ class _CashFlowFormState extends State<_CashFlowForm> {
 
   void _submit(CashFlowProvider provider) {
     if (!_formKey.currentState!.validate() || _accountId == null || _categoryId == null) return;
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+    final amount = _amountFieldKey.currentState!.amountInIdr;
     if (amount <= 0) return;
 
     provider.addTransaction(
@@ -177,7 +175,7 @@ class _CashFlowFormState extends State<_CashFlowForm> {
       description: _descCtrl.text,
     );
 
-    _amountCtrl.clear();
+    _amountFieldKey.currentState!.clear();
     _descCtrl.clear();
     _showSaved(context, 'Transaksi kas berhasil disimpan');
   }
@@ -195,19 +193,21 @@ class _InvestmentForm extends StatefulWidget {
 
 class _InvestmentFormState extends State<_InvestmentForm> {
   final _formKey = GlobalKey<FormState>();
+  final _priceFieldKey = GlobalKey<CurrencyAmountFieldState>();
   bool _isBuy = true;
   final _tickerCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   AssetClass _assetClass = AssetClass.equity;
   final _qtyCtrl = TextEditingController();
-  final _priceCtrl = TextEditingController();
   final _feeCtrl = TextEditingController(text: '0');
+  final _yieldCtrl = TextEditingController();
   DateTime _date = DateTime.now();
   String? _error;
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PortfolioProvider>();
+    final exchangeRate = context.watch<ExchangeRateProvider>().rate;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -244,20 +244,12 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               const SizedBox(height: 14),
               _label('Jenis Aset'),
               DropdownButtonFormField<AssetClass>(
-                initialValue: _assetClass,
+                value: _assetClass,
                 items: AssetClass.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                     .toList(),
                 onChanged: (v) => setState(() => _assetClass = v!),
               ),
-              // _label('Jenis Aset'),
-              // DropdownButtonFormField<AssetClass>(
-              //   initialValue: _investAction,
-              //   items: AssetClass.values
-              //       .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
-              //       .toList(),
-              //   onChanged: (v) => setState(() => _assetClass = v!),
-              // ),
               const SizedBox(height: 14),
               _label('Qty'),
               TextFormField(
@@ -265,33 +257,31 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(hintText: 'Jumlah unit / lembar / gram'),
                 validator: (v) => (v == null || v.isEmpty) ? 'Qty wajib diisi' : null,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter()
-                ],
               ),
               const SizedBox(height: 14),
-              _label('Harga per Unit (Rp)'),
-              TextFormField(
-                controller: _priceCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(hintText: 'Harga eksekusi per unit'),
+              CurrencyAmountField(
+                key: _priceFieldKey,
+                label: 'Harga per Unit',
+                hint: 'Harga eksekusi per unit',
+                exchangeRate: exchangeRate,
                 validator: (v) => (v == null || v.isEmpty) ? 'Harga wajib diisi' : null,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter()
-                ],
               ),
               const SizedBox(height: 14),
               _label('Fee / Biaya Transaksi (Rp)'),
               TextFormField(
                 controller: _feeCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter()
-                ],
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
+              if (_isBuy && _assetClass == AssetClass.moneyMarket) ...[
+                const SizedBox(height: 14),
+                _label('Yield Tahunan (%) — khusus Reksadana Pasar Uang'),
+                TextFormField(
+                  controller: _yieldCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(hintText: 'Contoh: 5.5'),
+                ),
+              ],
               const SizedBox(height: 14),
               _label('Tanggal'),
               _dateField(_date, (d) => setState(() => _date = d)),
@@ -315,8 +305,9 @@ class _InvestmentFormState extends State<_InvestmentForm> {
   void _submit(PortfolioProvider provider) {
     if (!_formKey.currentState!.validate()) return;
     final qty = double.tryParse(_qtyCtrl.text.replaceAll(',', '.')) ?? 0;
-    final price = double.tryParse(_priceCtrl.text.replaceAll(',', '.')) ?? 0;
-    final fee = double.tryParse(_feeCtrl.text.replaceAll(',', '.')) ?? 0;
+    final price = _priceFieldKey.currentState!.amountInIdr;
+    final fee = CurrencyInputHelper.unformatIdr(_feeCtrl.text);
+    final yieldPercent = double.tryParse(_yieldCtrl.text.replaceAll(',', '.')) ?? 0;
     if (qty <= 0 || price <= 0) return;
 
     setState(() => _error = null);
@@ -330,6 +321,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
         pricePerUnit: price,
         fee: fee,
         date: _date,
+        annualYieldPercent: yieldPercent,
       );
       _showSaved(context, 'Transaksi beli aset berhasil disimpan');
     } else {
@@ -350,8 +342,9 @@ class _InvestmentFormState extends State<_InvestmentForm> {
     _tickerCtrl.clear();
     _nameCtrl.clear();
     _qtyCtrl.clear();
-    _priceCtrl.clear();
+    _priceFieldKey.currentState!.clear();
     _feeCtrl.text = '0';
+    _yieldCtrl.clear();
   }
 }
 
@@ -367,15 +360,16 @@ class _DebtForm extends StatefulWidget {
 
 class _DebtFormState extends State<_DebtForm> {
   final _formKey = GlobalKey<FormState>();
+  final _amountFieldKey = GlobalKey<CurrencyAmountFieldState>();
   DebtType _type = DebtType.debt;
   final _nameCtrl = TextEditingController();
-  final _amountCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   DateTime _dueDate = DateTime.now().add(const Duration(days: 30));
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DebtProvider>();
+    final exchangeRate = context.watch<ExchangeRateProvider>().rate;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -401,16 +395,12 @@ class _DebtFormState extends State<_DebtForm> {
                 validator: (v) => (v == null || v.isEmpty) ? 'Nama wajib diisi' : null,
               ),
               const SizedBox(height: 14),
-              _label('Nominal (Rp)'),
-              TextFormField(
-                controller: _amountCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(hintText: 'Jumlah pinjaman'),
+              CurrencyAmountField(
+                key: _amountFieldKey,
+                label: 'Nominal',
+                hint: 'Jumlah pinjaman',
+                exchangeRate: exchangeRate,
                 validator: (v) => (v == null || v.isEmpty) ? 'Nominal wajib diisi' : null,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  CurrencyInputFormatter()
-                ],
               ),
               const SizedBox(height: 14),
               _label('Tanggal Jatuh Tempo'),
@@ -436,7 +426,7 @@ class _DebtFormState extends State<_DebtForm> {
 
   void _submit(DebtProvider provider) {
     if (!_formKey.currentState!.validate()) return;
-    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+    final amount = _amountFieldKey.currentState!.amountInIdr;
     if (amount <= 0) return;
 
     provider.addDebt(
@@ -448,7 +438,7 @@ class _DebtFormState extends State<_DebtForm> {
     );
 
     _nameCtrl.clear();
-    _amountCtrl.clear();
+    _amountFieldKey.currentState!.clear();
     _noteCtrl.clear();
     _showSaved(context, 'Data utang/piutang berhasil disimpan');
   }

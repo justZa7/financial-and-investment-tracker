@@ -3,8 +3,6 @@ import 'package:uuid/uuid.dart';
 
 import '../models/debt_model.dart';
 
-import '../services/mock_data_service.dart';
-
 const _uuid = Uuid();
 
 class DebtProvider extends ChangeNotifier {
@@ -12,10 +10,6 @@ class DebtProvider extends ChangeNotifier {
 
   // Tidak ada data yang di-seed -> daftar utang/piutang mulai kosong.
   // User menambahkan datanya sendiri lewat form Input (Tab Utang/Piutang).
-
-  // DebtProvider() {                  // tambahkan constructor ini
-  //   _debts.addAll(MockDataService.debts());
-  // }
 
   List<DebtModel> get all => List.unmodifiable(
       _debts..sort((a, b) => a.dueDate.compareTo(b.dueDate)));

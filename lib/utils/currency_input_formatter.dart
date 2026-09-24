@@ -1,35 +1,87 @@
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-class CurrencyInputFormatter extends TextInputFormatter {
-  final NumberFormat _formatter = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: '', // Tanpa simbol 'Rp ' agar murni angka saja
-    decimalDigits: 0,
-  );
+/// TextInputFormatter yang otomatis menambahkan titik pemisah ribuan
+/// (format Indonesia) saat user mengetik nominal IDR di TextField.
+/// Contoh: user ketik "150000" -> tampil otomatis jadi "150.000".
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  final NumberFormat _formatter = NumberFormat.decimalPattern('id_ID');
 
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.isEmpty) {
+    final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (digitsOnly.isEmpty) {
       return newValue.copyWith(text: '');
     }
 
-    // Hapus karakter non-digit agar hanya memproses angka
-    final cleanText = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
-    if (cleanText.isEmpty) {
-      return const TextEditingValue();
-    }
-
-    final double value = double.parse(cleanText);
-    final String formattedText = _formatter.format(value).trim();
+    final trimmed = digitsOnly.length > 15 ? digitsOnly.substring(0, 15) : digitsOnly;
+    final number = int.parse(trimmed);
+    final newText = _formatter.format(number);
 
     return TextEditingValue(
-      text: formattedText,
-      // Menjaga kursor tetap berada di paling akhir teks
-      selection: TextSelection.collapsed(offset: formattedText.length),
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
     );
+  }
+}
+
+/// TextInputFormatter untuk nominal USD: koma sebagai pemisah ribuan,
+/// titik sebagai pemisah desimal (maks. 2 digit desimal/sen).
+/// Contoh: user ketik "1234.5" -> tampil otomatis jadi "1,234.5".
+class UsdInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    String text = newValue.text.replaceAll(RegExp(r'[^0-9.]'), '');
+
+    // Hanya izinkan satu titik desimal.
+    final firstDot = text.indexOf('.');
+    if (firstDot != -1) {
+      text = text.substring(0, firstDot + 1) +
+          text.substring(firstDot + 1).replaceAll('.', '');
+    }
+
+    String integerPart;
+    String decimalPart = '';
+    if (firstDot == -1) {
+      integerPart = text;
+    } else {
+      integerPart = text.substring(0, firstDot);
+      decimalPart = text.substring(firstDot); // termasuk titiknya
+      if (decimalPart.length > 3) decimalPart = decimalPart.substring(0, 3); // maks 2 digit desimal
+    }
+
+    if (integerPart.isEmpty && decimalPart.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    final intVal = integerPart.isEmpty ? 0 : int.tryParse(integerPart) ?? 0;
+    final formattedInt = NumberFormat.decimalPattern('en_US').format(intVal);
+    final newText = '$formattedInt$decimalPart';
+
+    return TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+  }
+}
+
+class CurrencyInputHelper {
+  CurrencyInputHelper._();
+
+  /// "150.000" -> 150000.0
+  static double unformatIdr(String formattedText) {
+    return double.tryParse(formattedText.replaceAll('.', '')) ?? 0;
+  }
+
+  /// "1,234.5" -> 1234.5
+  static double unformatUsd(String formattedText) {
+    return double.tryParse(formattedText.replaceAll(',', '')) ?? 0;
   }
 }
