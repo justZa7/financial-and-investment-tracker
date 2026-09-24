@@ -1,0 +1,35 @@
+name: finance_tracker
+description: "Personal Finance & Investment Tracker - Catat arus kas, portofolio investasi lintas aset, dan utang-piutang."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # State Management (dipilih: Provider — paling simpel & minim boilerplate)
+  provider: ^6.1.2
+
+  # Chart library
+  fl_chart: ^0.68.0
+
+  # Formatting angka & tanggal (Rupiah, tanggal Indonesia)
+  intl: ^0.19.0
+
+  # Generate ID unik untuk entitas lokal (transaksi, aset, utang, dll)
+  uuid: ^4.4.0
+
+  
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
