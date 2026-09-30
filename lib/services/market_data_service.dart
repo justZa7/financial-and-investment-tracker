@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/asset_holding_model.dart';
+import 'exchange_rate_service.dart';
 
 /// Hasil fetch harga otomatis untuk satu ticker.
 class FetchPriceResult {
@@ -15,26 +17,32 @@ class FetchPriceResult {
 }
 
 /// Service untuk mengambil harga pasar terkini dari API publik, dipanggil
-/// dari tombol "Fetch Harga dari API" di halaman Portfolio.
+/// dari tombol "Fetch Harga dari API" / pull-to-refresh di halaman Portfolio.
 ///
 /// STATUS DUKUNGAN PER KELAS ASET (penting dibaca sebelum demo):
 /// - **Crypto**  : didukung penuh lewat CoinGecko (gratis, tanpa API key).
 /// - **Equity**  : didukung lewat Yahoo Finance (endpoint publik/unofficial
-///   `query1.finance.yahoo.com`, gratis, tanpa API key). Ticker tanpa suffix
+///   `query1.finance.yahoo.com`, gratis, tanpa API key). Ticker tanpa titik
 ///   otomatis dianggap saham IDX dan ditambah ".JK" (contoh: BBCA -> BBCA.JK).
-///   ⚠️ Endpoint ini TIDAK RESMI didokumentasikan Yahoo — bisa saja berubah
-///   format/di-rate-limit sewaktu-waktu tanpa pemberitahuan. Untuk kebutuhan
-///   produksi/skala besar, pertimbangkan API berbayar resmi (IEX Cloud,
-///   Alpha Vantage, dsb).
-/// - **Gold**    : BELUM didukung otomatis. Perlu API harga emas berbayar
-///   (metals-api.com, goldapi.io, dsb). Lengkapi [_fetchGoldBatch].
-/// - **Reksadana/Money Market**: BELUM didukung otomatis — NAB per produk
-///   umumnya hanya tersedia lewat API masing-masing platform sekuritas /
-///   manajer investasi, tidak ada API publik terstandarisasi.
+/// - **Gold**    : didukung lewat gold-api.com (gratis, tanpa API key) untuk
+///   harga emas spot dunia (USD/troy ounce), dikonversi ke IDR/gram pakai
+///   kurs dari ExchangeRateService. ⚠️ Ini harga SPOT emas dunia, BUKAN
+///   harga resmi Antam/toko emas lokal (yang biasanya ada premium/margin
+///   tambahan) — anggap sebagai estimasi acuan, bukan harga jual-beli pasti.
+/// - **Reksadana/Money Market**: SENGAJA tidak difetch otomatis — NAB per
+///   produk reksadana pasar uang hanya tersedia lewat API masing-masing
+///   platform sekuritas/manajer investasi (tidak ada API publik gratis
+///   yang terstandarisasi). Selalu pakai "Update Harga Manual" untuk ini.
 ///
-/// Untuk kelas aset yang belum didukung, [fetchAll] tetap mengembalikan
-/// [FetchPriceResult] dengan `error` terisi supaya UI bisa menampilkan
-/// alasannya ke user, alih-alih diam-diam gagal.
+/// ⚠️ Catatan umum: endpoint Yahoo Finance & gold-api.com di atas TIDAK
+/// RESMI didokumentasikan oleh penyedianya — dipakai luas oleh komunitas
+/// developer, cukup andal untuk demo/skala kecil, tapi bisa berubah format
+/// atau di-*rate-limit* sewaktu-waktu tanpa pemberitahuan resmi. Untuk
+/// kebutuhan produksi/skala besar, pertimbangkan API berbayar resmi.
+///
+/// Untuk kelas aset yang sengaja tidak difetch (Reksadana), [fetchAll]
+/// tetap mengembalikan [FetchPriceResult] dengan `error` terisi supaya UI
+/// bisa menampilkan alasannya ke user, alih-alih diam-diam gagal.
 class MarketDataService {
   MarketDataService._();
 
@@ -54,6 +62,10 @@ class MarketDataService {
     'DOT': 'polkadot',
   };
 
+  /// 1 troy ounce = 31.1034768 gram — dipakai konversi harga emas dunia
+  /// (per ounce) ke satuan yang dipakai app ini (per gram).
+  static const double _gramsPerTroyOunce = 31.1034768;
+
   static Future<List<FetchPriceResult>> fetchAll(List<AssetHoldingModel> holdings) async {
     final results = <FetchPriceResult>[];
 
@@ -67,12 +79,16 @@ class MarketDataService {
       results.addAll(await _fetchEquityBatch(equityHoldings.map((h) => h.ticker).toList()));
     }
 
-    for (final h in holdings.where(
-        (h) => h.assetClass != AssetClass.crypto && h.assetClass != AssetClass.equity)) {
+    final goldHoldings = holdings.where((h) => h.assetClass == AssetClass.gold).toList();
+    if (goldHoldings.isNotEmpty) {
+      results.addAll(await _fetchGoldBatch(goldHoldings.map((h) => h.ticker).toList()));
+    }
+
+    for (final h in holdings.where((h) => h.assetClass == AssetClass.moneyMarket)) {
       results.add(FetchPriceResult(
         ticker: h.ticker,
-        error: 'Update otomatis untuk ${h.assetClass.label} belum didukung (perlu API berbayar). '
-            'Gunakan "Update Harga Manual".',
+        error: 'Reksadana Pasar Uang tidak difetch otomatis (NAB harian tidak tersedia lewat '
+            'API publik). Silakan gunakan "Update Harga Manual".',
       ));
     }
 
@@ -119,9 +135,10 @@ class MarketDataService {
         }
         return FetchPriceResult(ticker: t, price: price);
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[MarketDataService] fetch crypto gagal: $e');
       return uniqueTickers
-          .map((t) => FetchPriceResult(ticker: t, error: 'Gagal terhubung ke API (cek koneksi internet)'))
+          .map((t) => FetchPriceResult(ticker: t, error: 'Gagal terhubung ke API: $e'))
           .toList();
     }
   }
@@ -181,11 +198,49 @@ class MarketDataService {
       }
 
       return FetchPriceResult(ticker: ticker, price: price);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[MarketDataService] fetch equity $symbol gagal: $e');
       return FetchPriceResult(
         ticker: ticker,
-        error: 'Gagal terhubung ke Yahoo Finance untuk $symbol (cek koneksi internet)',
+        error: 'Gagal terhubung ke Yahoo Finance untuk $symbol: $e',
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // GOLD — gold-api.com (unofficial, gratis, tanpa API key)
+  // ---------------------------------------------------------------------
+  static Future<List<FetchPriceResult>> _fetchGoldBatch(List<String> tickers) async {
+    final uniqueTickers = tickers.toSet().toList();
+    try {
+      final uri = Uri.parse('https://api.gold-api.com/price/XAU');
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) {
+        return uniqueTickers
+            .map((t) => FetchPriceResult(ticker: t, error: 'Gagal fetch harga emas (HTTP ${res.statusCode})'))
+            .toList();
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final pricePerOunceUsd = (data['price'] as num?)?.toDouble();
+
+      if (pricePerOunceUsd == null) {
+        return uniqueTickers
+            .map((t) => FetchPriceResult(ticker: t, error: 'Response API harga emas tidak sesuai format yang diharapkan'))
+            .toList();
+      }
+
+      // Konversi: USD/troy-ounce -> USD/gram -> IDR/gram (pakai kurs terkini).
+      final usdToIdr = await ExchangeRateService.fetchUsdToIdrRate();
+      final pricePerGramIdr = (pricePerOunceUsd / _gramsPerTroyOunce) * usdToIdr;
+
+      return uniqueTickers.map((t) => FetchPriceResult(ticker: t, price: pricePerGramIdr)).toList();
+    } catch (e) {
+      debugPrint('[MarketDataService] fetch gold gagal: $e');
+      return uniqueTickers
+          .map((t) => FetchPriceResult(ticker: t, error: 'Gagal terhubung ke API harga emas: $e'))
+          .toList();
     }
   }
 }

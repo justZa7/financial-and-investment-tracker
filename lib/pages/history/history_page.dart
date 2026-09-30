@@ -7,6 +7,8 @@ import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/portfolio_provider.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/display_currency_toggle.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/transaction_tile.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -46,6 +48,8 @@ class _HistoryPageState extends State<HistoryPage> {
               children: [
                 Text('Riwayat Transaksi',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                const DisplayCurrencyToggle(),
                 IconButton(
                   onPressed: () async {
                     final picked = await showDateRangePicker(
@@ -94,7 +98,7 @@ class _HistoryPageState extends State<HistoryPage> {
           const SizedBox(height: 8),
           Expanded(
             child: filtered.isEmpty
-                ? Center(child: Text('Tidak ada transaksi', style: TextStyle(color: Colors.grey.shade500)))
+                ? const EmptyState(icon: Icons.receipt_long_outlined, title: 'Tidak ada transaksi')
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
                     itemCount: filtered.length,

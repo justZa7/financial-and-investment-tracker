@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../../models/asset_holding_model.dart';
 import '../../providers/portfolio_provider.dart';
-import '../../services/market_data_service.dart';
 import '../../utils/currency_input_formatter.dart';
 import '../../utils/formatters.dart';
+import '../../widgets/display_currency_toggle.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/money_text.dart';
 import '../../widgets/portfolio_item_tile.dart';
+import '../../widgets/section_header.dart';
 
 class PortfolioPage extends StatefulWidget {
   const PortfolioPage({super.key});
@@ -33,62 +36,82 @@ class _PortfolioPageState extends State<PortfolioPage> {
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () => _showUpdatePriceSheet(context, provider),
           icon: const Icon(Icons.price_change_outlined),
-          label: const Text('Update Harga'),
+          label: const Text('Update Manual'),
         ),
-        body: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              floating: true,
-              title: const Text('Portofolio', style: TextStyle(fontWeight: FontWeight.bold)),
-              actions: [
-                IconButton(
-                  tooltip: 'Fetch Harga dari API (Crypto & Saham)',
-                  onPressed: _isFetching ? null : () => _fetchFromApi(context, provider),
-                  icon: _isFetching
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.cloud_sync_outlined),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _summaryHeader(provider),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    height: 36,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
+        body: RefreshIndicator(
+          onRefresh: () => _fetchFromApi(context, provider, silent: true),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                floating: true,
+                title: const Text('Portofolio', style: TextStyle(fontWeight: FontWeight.bold)),
+                actions: [
+                  const DisplayCurrencyToggle(),
+                  IconButton(
+                    tooltip: 'Fetch Harga dari API (Crypto, Saham, Emas)',
+                    onPressed: _isFetching ? null : () => _fetchFromApi(context, provider),
+                    icon: _isFetching
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.cloud_sync_outlined),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _summaryHeader(provider),
+                    const SizedBox(height: 8),
+                    Row(
                       children: [
-                        _filterChip('Semua', null),
-                        for (final c in AssetClass.values) _filterChip(c.label, c),
+                        Icon(Icons.swipe_down_alt_rounded, size: 13, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Tarik ke bawah untuk refresh harga (Crypto/Saham/Emas otomatis)',
+                          style: TextStyle(fontSize: 10.5, color: Colors.grey.shade400),
+                        ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  if (holdings.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 40),
-                      child: Center(
-                        child: Text('Belum ada aset di kategori ini',
-                            style: TextStyle(color: Colors.grey.shade500)),
+                    const SizedBox(height: 18),
+                    SectionHeader(
+                      icon: Icons.filter_list_rounded,
+                      color: Colors.indigo,
+                      title: 'Holding Anda',
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 36,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _filterChip('Semua', null),
+                          for (final c in AssetClass.values) _filterChip(c.label, c),
+                        ],
                       ),
-                    )
-                  else
-                    ...holdings.map((h) => PortfolioItemTile(
-                          holding: h,
-                          onUpdatePrice: () => _showUpdateSingleAsset(context, provider, h),
-                        )),
-                ]),
+                    ),
+                    const SizedBox(height: 14),
+                    if (holdings.isEmpty)
+                      const EmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'Belum ada aset di kategori ini',
+                        subtitle: 'Tambahkan lewat tab Input > Investasi',
+                      )
+                    else
+                      ...holdings.map((h) => PortfolioItemTile(
+                            holding: h,
+                            onUpdatePrice: () => _showUpdateSingleAsset(context, provider, h),
+                          )),
+                  ]),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -108,65 +131,74 @@ class _PortfolioPageState extends State<PortfolioPage> {
 
   Widget _summaryHeader(PortfolioProvider provider) {
     final gain = provider.totalGainLoss;
-    final gainColor = gain >= 0 ? Colors.green.shade700 : Colors.red.shade700;
+    final gainColor = gain >= 0 ? const Color(0xFF17A673) : const Color(0xFFE5484D);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Total Nilai Portofolio', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            const SizedBox(height: 4),
-            Text(
-              AppFormatters.rupiah(provider.totalMarketValue),
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _statColumn('Cost Basis', AppFormatters.rupiah(provider.totalCostBasis)),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6C5CE7), Color(0xFF2F6FED)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF6C5CE7).withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Total Nilai Portofolio', style: TextStyle(fontSize: 12.5, color: Colors.white70)),
+          const SizedBox(height: 6),
+          MoneyText(
+            amountInIdr: provider.totalMarketValue,
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _statColumn('Cost Basis', MoneyText(amountInIdr: provider.totalCostBasis, style: _statStyle)),
+              ),
+              Expanded(
+                child: _statColumn(
+                  'Total Gain/Loss',
+                  MoneyText(amountInIdr: gain, signed: true, style: _statStyle),
                 ),
-                Expanded(
-                  child: _statColumn(
-                    'Total Gain/Loss',
-                    AppFormatters.rupiahSigned(gain),
-                    color: gainColor,
-                  ),
+              ),
+              Expanded(
+                child: _statColumn(
+                  'Realized G/L',
+                  MoneyText(amountInIdr: provider.totalRealizedGainLoss, signed: true, style: _statStyle),
                 ),
-                Expanded(
-                  child: _statColumn(
-                    'Realized G/L',
-                    AppFormatters.rupiahSigned(provider.totalRealizedGainLoss),
-                    color: provider.totalRealizedGainLoss >= 0 ? Colors.green.shade700 : Colors.red.shade700,
-                  ),
-                ),
-              ],
-            ),
-            if (provider.totalYieldGain > 0) ...[
-              const SizedBox(height: 14),
-              const Divider(height: 1),
-              const SizedBox(height: 14),
-              _statColumn(
-                'Estimasi Yield Gain (Reksadana Pasar Uang)',
-                AppFormatters.rupiahSigned(provider.totalYieldGain),
-                color: Colors.teal.shade700,
               ),
             ],
+          ),
+          if (provider.totalYieldGain > 0) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            const SizedBox(height: 14),
+            _statColumn(
+              'Estimasi Yield Gain (Reksadana Pasar Uang)',
+              MoneyText(amountInIdr: provider.totalYieldGain, signed: true, style: _statStyle),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _statColumn(String label, String value, {Color? color}) {
+  static const _statStyle = TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white);
+
+  Widget _statColumn(String label, Widget valueWidget) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-        const SizedBox(height: 2),
-        Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        Text(label, style: const TextStyle(fontSize: 10.5, color: Colors.white60)),
+        const SizedBox(height: 3),
+        valueWidget,
       ],
     );
   }
@@ -189,10 +221,12 @@ class _PortfolioPageState extends State<PortfolioPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Update Harga Pasar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text('Update Harga Pasar Manual', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
-                  Text('Perbarui harga pasar semua aset agar nilai portofolio & chart ter-update',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    'Harga selalu diisi/ditampilkan dalam Rupiah (IDR) di sini, terlepas dari mata uang tampilan yang aktif.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
                   const SizedBox(height: 16),
                   Expanded(
                     child: ListView.separated(
@@ -243,11 +277,16 @@ class _PortfolioPageState extends State<PortfolioPage> {
     );
   }
 
-  Future<void> _fetchFromApi(BuildContext context, PortfolioProvider provider) async {
+  /// [silent] = true dipakai saat trigger dari pull-to-refresh (tanpa cek
+  /// "belum ada aset" duluan, karena RefreshIndicator selalu perlu Future
+  /// yang selesai supaya animasinya berhenti dengan benar).
+  Future<void> _fetchFromApi(BuildContext context, PortfolioProvider provider, {bool silent = false}) async {
     if (provider.activeHoldings.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Belum ada aset di portofolio'), behavior: SnackBarBehavior.floating),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Belum ada aset di portofolio'), behavior: SnackBarBehavior.floating),
+        );
+      }
       return;
     }
 
@@ -272,7 +311,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
               children: [
                 if (success.isNotEmpty) ...[
                   Text('Berhasil diperbarui (${success.length})',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 13)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF17A673), fontSize: 13)),
                   const SizedBox(height: 6),
                   ...success.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
@@ -313,7 +352,7 @@ class _PriceEditRow extends StatefulWidget {
 
 class _PriceEditRowState extends State<_PriceEditRow> {
   late final TextEditingController _ctrl =
-      TextEditingController(text: widget.holding.marketPrice.toString());
+      TextEditingController(text: widget.holding.marketPrice.toStringAsFixed(0));
 
   @override
   Widget build(BuildContext context) {
@@ -327,11 +366,12 @@ class _PriceEditRowState extends State<_PriceEditRow> {
           flex: 3,
           child: TextField(
             controller: _ctrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: TextInputType.number,
+            inputFormatters: [ThousandsSeparatorInputFormatter()],
             decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
             onSubmitted: (v) {
-              final price = double.tryParse(v.replaceAll(',', '.'));
-              if (price != null && price > 0) {
+              final price = CurrencyInputHelper.unformatIdr(v);
+              if (price > 0) {
                 widget.provider.updateMarketPrice(widget.holding.ticker, price);
               }
             },
@@ -340,8 +380,8 @@ class _PriceEditRowState extends State<_PriceEditRow> {
         IconButton(
           icon: const Icon(Icons.check_circle_outline, size: 20),
           onPressed: () {
-            final price = double.tryParse(_ctrl.text.replaceAll(',', '.'));
-            if (price != null && price > 0) {
+            final price = CurrencyInputHelper.unformatIdr(_ctrl.text);
+            if (price > 0) {
               widget.provider.updateMarketPrice(widget.holding.ticker, price);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Harga ${widget.holding.ticker} diperbarui'), behavior: SnackBarBehavior.floating),

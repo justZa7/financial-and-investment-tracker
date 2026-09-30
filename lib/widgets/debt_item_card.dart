@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/debt_model.dart';
 import '../utils/formatters.dart';
+import 'money_text.dart';
 
 class DebtItemCard extends StatelessWidget {
   final DebtModel debt;
@@ -94,8 +95,8 @@ class DebtItemCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Sisa Pinjaman', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                      Text(
-                        AppFormatters.rupiah(debt.remaining),
+                      MoneyText(
+                        amountInIdr: debt.remaining,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ],

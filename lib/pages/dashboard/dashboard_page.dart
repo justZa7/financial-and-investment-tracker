@@ -4,13 +4,18 @@ import 'package:provider/provider.dart';
 
 import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
+import '../../providers/display_currency_provider.dart';
+import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
 import '../../services/calculation_service.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/allocation_pie_chart.dart';
 import '../../widgets/asset_class_card.dart';
 import '../../widgets/debt_alert_card.dart';
+import '../../widgets/display_currency_toggle.dart';
+import '../../widgets/money_text.dart';
 import '../../widgets/performance_line_chart.dart';
+import '../../widgets/section_header.dart';
 import '../../widgets/summary_card.dart';
 import '../../models/asset_holding_model.dart';
 
@@ -22,6 +27,8 @@ class DashboardPage extends StatelessWidget {
     final cashFlow = context.watch<CashFlowProvider>();
     final portfolio = context.watch<PortfolioProvider>();
     final debt = context.watch<DebtProvider>();
+    final displayCurrency = context.watch<DisplayCurrencyProvider>().currency;
+    final usdRate = context.watch<ExchangeRateProvider>().rate;
 
     final netWorth = CalculationService.netWorth(
       totalCash: cashFlow.totalCashBalance,
@@ -46,12 +53,8 @@ class DashboardPage extends StatelessWidget {
           SliverAppBar(
             floating: true,
             title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-            actions: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications_none_rounded),
-              ),
-              const SizedBox(width: 8),
+            actions: const [
+              DisplayCurrencyToggle(),
             ],
           ),
           SliverPadding(
@@ -87,13 +90,13 @@ class DashboardPage extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // List Aset per kelas
-                Text('Aset Anda', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
+                SectionHeader(icon: Icons.pie_chart_rounded, color: Colors.indigo, title: 'Aset Anda'),
+                const SizedBox(height: 12),
                 SizedBox(
-                  height: 128,
+                  height: 124,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
@@ -107,7 +110,7 @@ class DashboardPage extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Rata-rata income/expense
                 Row(
@@ -115,36 +118,39 @@ class DashboardPage extends StatelessWidget {
                     Expanded(
                       child: SummaryCard(
                         title: 'Rata-rata Pemasukan',
-                        value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyIncome),
+                        valueWidget: MoneyText(amountInIdr: cashFlow.averageMonthlyIncome, compact: true),
                         subtitle: 'per bulan',
                         icon: Icons.arrow_downward_rounded,
-                        color: Colors.green,
+                        color: const Color(0xFF17A673),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: SummaryCard(
                         title: 'Rata-rata Pengeluaran',
-                        value: AppFormatters.rupiahCompact(cashFlow.averageMonthlyExpense),
+                        valueWidget: MoneyText(amountInIdr: cashFlow.averageMonthlyExpense, compact: true),
                         subtitle: 'per bulan',
                         icon: Icons.arrow_upward_rounded,
-                        color: Colors.red,
+                        color: const Color(0xFFE5484D),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Pie chart alokasi
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Alokasi Antar Aset',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 14),
+                        const SectionHeader(
+                          icon: Icons.donut_large_rounded,
+                          color: Colors.purple,
+                          title: 'Alokasi Antar Aset',
+                        ),
+                        const SizedBox(height: 16),
                         AllocationPieChart(
                           allocation: portfolio.allocation,
                           cashValue: cashFlow.totalCashBalance,
@@ -158,36 +164,38 @@ class DashboardPage extends StatelessWidget {
                 // Line chart performance
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Grafik Performance',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 10),
+                        const SectionHeader(
+                          icon: Icons.show_chart_rounded,
+                          color: Color(0xFF2F6FED),
+                          title: 'Grafik Performance',
+                        ),
+                        const SizedBox(height: 12),
                         PerformanceLineChart(
                           labels: trendLabels,
                           portfolioValues: portfolioTrend,
                           incomeValues: monthlyTrend.map((m) => m.income).toList(),
                           expenseValues: monthlyTrend.map((m) => m.expense).toList(),
+                          currency: displayCurrency,
+                          usdRate: usdRate,
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
 
                 // Quick alert utang/piutang
                 if (debt.dueSoonAlerts.isNotEmpty) ...[
-                  Row(
-                    children: [
-                      Text('Peringatan Jatuh Tempo',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 6),
-                      Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange.shade700),
-                    ],
+                  const SectionHeader(
+                    icon: Icons.warning_amber_rounded,
+                    color: Colors.orange,
+                    title: 'Peringatan Jatuh Tempo',
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   SizedBox(
                     height: 118,
                     child: ListView.separated(
@@ -223,22 +231,35 @@ class DashboardPage extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2F6FED).withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Total Net Worth', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 6),
-          Text(
-            AppFormatters.rupiah(netWorth),
-            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
           Row(
             children: [
-              _miniStat('Kas & Bank', AppFormatters.rupiahCompact(cashFlow.totalCashBalance)),
-              _miniStat('Aset Investasi', AppFormatters.rupiahCompact(portfolio.totalMarketValue)),
-              _miniStat('Total Utang', AppFormatters.rupiahCompact(debt.totalDebt)),
+              const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 16),
+              const SizedBox(width: 6),
+              const Text('Total Net Worth', style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          MoneyText(
+            amountInIdr: netWorth,
+            style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _miniStat('Kas & Bank', cashFlow.totalCashBalance),
+              _miniStat('Aset Investasi', portfolio.totalMarketValue),
+              _miniStat('Total Utang', debt.totalDebt),
             ],
           ),
         ],
@@ -246,14 +267,18 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _miniStat(String label, String value) {
+  Widget _miniStat(String label, double amountInIdr) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 3),
+          MoneyText(
+            amountInIdr: amountInIdr,
+            compact: true,
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );

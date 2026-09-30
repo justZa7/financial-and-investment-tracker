@@ -1,13 +1,16 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../utils/formatters.dart';
+import '../utils/input_currency.dart';
+import '../utils/money_formatter.dart';
 
 class PerformanceLineChart extends StatelessWidget {
   final List<String> labels;
-  final List<double> portfolioValues;
-  final List<double> incomeValues;
-  final List<double> expenseValues;
+  final List<double> portfolioValues; // basis IDR
+  final List<double> incomeValues; // basis IDR
+  final List<double> expenseValues; // basis IDR
+  final InputCurrency currency;
+  final double usdRate;
 
   const PerformanceLineChart({
     super.key,
@@ -15,25 +18,31 @@ class PerformanceLineChart extends StatelessWidget {
     required this.portfolioValues,
     required this.incomeValues,
     required this.expenseValues,
+    required this.currency,
+    required this.usdRate,
   });
 
   @override
   Widget build(BuildContext context) {
-    final allValues = [...portfolioValues, ...incomeValues, ...expenseValues];
-    final maxY = allValues.isEmpty
-        ? 100.0
-        : allValues.reduce((a, b) => a > b ? a : b) * 1.2;
+    // Konversi semua data ke mata uang tampilan aktif SEBELUM diplot, supaya
+    // skala grafik & tooltip ikut berubah saat user toggle IDR/USD.
+    final portfolio = portfolioValues.map((v) => MoneyFormatter.convert(v, currency, usdRate)).toList();
+    final income = incomeValues.map((v) => MoneyFormatter.convert(v, currency, usdRate)).toList();
+    final expense = expenseValues.map((v) => MoneyFormatter.convert(v, currency, usdRate)).toList();
+
+    final allValues = [...portfolio, ...income, ...expense];
+    final maxY = allValues.isEmpty ? 100.0 : allValues.reduce((a, b) => a > b ? a : b) * 1.2;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            _legendDot('Portofolio', Colors.indigo),
+            _legendDot('Portofolio', const Color(0xFF2F6FED)),
             const SizedBox(width: 14),
-            _legendDot('Pemasukan', Colors.green),
+            _legendDot('Pemasukan', const Color(0xFF17A673)),
             const SizedBox(width: 14),
-            _legendDot('Pengeluaran', Colors.red),
+            _legendDot('Pengeluaran', const Color(0xFFE5484D)),
           ],
         ),
         const SizedBox(height: 14),
@@ -81,16 +90,16 @@ class PerformanceLineChart extends StatelessWidget {
                 touchTooltipData: LineTouchTooltipData(
                   getTooltipItems: (spots) => spots.map((s) {
                     return LineTooltipItem(
-                      AppFormatters.rupiahCompact(s.y),
+                      MoneyFormatter.formatValue(s.y, currency, compact: true),
                       const TextStyle(color: Colors.white, fontSize: 11),
                     );
                   }).toList(),
                 ),
               ),
               lineBarsData: [
-                _line(portfolioValues, Colors.indigo),
-                _line(incomeValues, Colors.green),
-                _line(expenseValues, Colors.red),
+                _line(portfolio, const Color(0xFF2F6FED)),
+                _line(income, const Color(0xFF17A673)),
+                _line(expense, const Color(0xFFE5484D)),
               ],
             ),
           ),
@@ -106,7 +115,14 @@ class PerformanceLineChart extends StatelessWidget {
       color: color,
       barWidth: 2.5,
       dotData: const FlDotData(show: false),
-      belowBarData: BarAreaData(show: false),
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.16), color.withOpacity(0.0)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
     );
   }
 

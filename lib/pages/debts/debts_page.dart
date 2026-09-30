@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../models/debt_model.dart';
 import '../../providers/debt_provider.dart';
-import '../../utils/formatters.dart';
+import '../../utils/currency_input_formatter.dart';
 import '../../widgets/debt_item_card.dart';
+import '../../widgets/display_currency_toggle.dart';
+import '../../widgets/empty_state.dart';
+import '../../widgets/money_text.dart';
 
 class DebtsPage extends StatefulWidget {
   const DebtsPage({super.key});
@@ -24,15 +27,22 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Utang & Piutang',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('Utang & Piutang',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                ),
+                const DisplayCurrencyToggle(),
+              ],
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _headerCards(provider),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           TabBar(
             controller: _tabController,
             tabs: const [
@@ -58,54 +68,65 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
     return Row(
       children: [
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Total Piutang Anda', style: TextStyle(fontSize: 11, color: Colors.green.shade800)),
-                const SizedBox(height: 6),
-                Text(
-                  AppFormatters.rupiah(provider.totalReceivable),
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800),
-                ),
-              ],
-            ),
+          child: _headerCard(
+            label: 'Total Piutang Anda',
+            amountInIdr: provider.totalReceivable,
+            icon: Icons.arrow_downward_rounded,
+            colors: const [Color(0xFF17A673), Color(0xFF11A67D)],
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Total Utang Anda', style: TextStyle(fontSize: 11, color: Colors.red.shade800)),
-                const SizedBox(height: 6),
-                Text(
-                  AppFormatters.rupiah(provider.totalDebt),
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800),
-                ),
-              ],
-            ),
+          child: _headerCard(
+            label: 'Total Utang Anda',
+            amountInIdr: provider.totalDebt,
+            icon: Icons.arrow_upward_rounded,
+            colors: const [Color(0xFFE5484D), Color(0xFFC53A40)],
           ),
         ),
       ],
     );
   }
 
+  Widget _headerCard({
+    required String label,
+    required double amountInIdr,
+    required IconData icon,
+    required List<Color> colors,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: colors.first.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 6))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 13, color: Colors.white70),
+              const SizedBox(width: 4),
+              Text(label, style: const TextStyle(fontSize: 11, color: Colors.white70)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          MoneyText(
+            amountInIdr: amountInIdr,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _debtList(DebtProvider provider, List<DebtModel> items) {
     if (items.isEmpty) {
-      return Center(
-        child: Text('Belum ada data', style: TextStyle(color: Colors.grey.shade500)),
+      return const EmptyState(
+        icon: Icons.handshake_outlined,
+        title: 'Belum ada data',
+        subtitle: 'Tambahkan lewat tab Input > Utang/Piutang',
       );
     }
     return ListView.builder(
@@ -131,12 +152,17 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Sisa: ${AppFormatters.rupiah(debt.remaining)}',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Row(
+              children: [
+                const Text('Sisa: ', style: TextStyle(fontWeight: FontWeight.w600)),
+                MoneyText(amountInIdr: debt.remaining, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
               keyboardType: TextInputType.number,
+              inputFormatters: [ThousandsSeparatorInputFormatter()],
               autofocus: true,
               decoration: const InputDecoration(labelText: 'Nominal Pembayaran (Rp)'),
             ),
@@ -146,8 +172,8 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
           FilledButton(
             onPressed: () {
-              final amount = double.tryParse(ctrl.text.replaceAll(',', ''));
-              if (amount != null && amount > 0) {
+              final amount = CurrencyInputHelper.unformatIdr(ctrl.text);
+              if (amount > 0) {
                 provider.payInstallment(debtId: debt.id, amount: amount);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(

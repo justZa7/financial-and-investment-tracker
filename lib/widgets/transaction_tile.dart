@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/formatters.dart';
+import 'money_text.dart';
 
 enum HistoryTxKind { income, expense, assetBuy, assetSell, debtPayment }
 
@@ -45,15 +46,15 @@ class TransactionTile extends StatelessWidget {
   Color get _color {
     switch (item.kind) {
       case HistoryTxKind.income:
-        return Colors.green.shade600;
+        return const Color(0xFF17A673);
       case HistoryTxKind.expense:
-        return Colors.red.shade600;
+        return const Color(0xFFE5484D);
       case HistoryTxKind.assetBuy:
-        return Colors.blue.shade600;
+        return const Color(0xFF2F6FED);
       case HistoryTxKind.assetSell:
-        return Colors.purple.shade600;
+        return const Color(0xFF9B5DE5);
       case HistoryTxKind.debtPayment:
-        return Colors.orange.shade700;
+        return const Color(0xFFCB9A2B);
     }
   }
 
@@ -62,15 +63,35 @@ class TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
+    // Nilai bertanda (+ untuk income/jual, - untuk expense/beli/bayar utang)
+    // supaya MoneyText(signed:true) otomatis tampilkan prefix yang benar
+    // sekaligus mengkonversi ke mata uang tampilan (IDR/USD) yang aktif.
+    final signedAmount = _isPositive ? item.amount : -item.amount;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3)),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: _color.withOpacity(0.12),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [_color.withOpacity(0.18), _color.withOpacity(0.06)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
               child: Icon(_icon, size: 18, color: _color),
             ),
             const SizedBox(width: 12),
@@ -80,10 +101,12 @@ class TransactionTile extends StatelessWidget {
                 children: [
                   Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                   const SizedBox(height: 2),
-                  Text(item.subtitle,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
+                  if (item.subtitle.isNotEmpty)
+                    Text(item.subtitle,
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
                   Text(AppFormatters.date(item.date),
                       style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
                 ],
@@ -92,25 +115,34 @@ class TransactionTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  '${_isPositive ? '+' : '-'}${AppFormatters.rupiah(item.amount)}',
+                MoneyText(
+                  amountInIdr: signedAmount,
+                  signed: true,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: _isPositive ? Colors.green.shade700 : Colors.red.shade700,
+                    color: _isPositive ? const Color(0xFF17A673) : const Color(0xFFE5484D),
                   ),
                 ),
-                if (item.realizedGainLoss != null)
-                  Text(
-                    'Realized: ${AppFormatters.rupiahSigned(item.realizedGainLoss!)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: item.realizedGainLoss! >= 0
-                          ? Colors.green.shade700
-                          : Colors.red.shade700,
-                    ),
+                if (item.realizedGainLoss != null) ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text('Realized: ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      MoneyText(
+                        amountInIdr: item.realizedGainLoss!,
+                        signed: true,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: item.realizedGainLoss! >= 0
+                              ? const Color(0xFF17A673)
+                              : const Color(0xFFE5484D),
+                        ),
+                      ),
+                    ],
                   ),
+                ],
               ],
             ),
           ],

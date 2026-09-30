@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/asset_holding_model.dart';
 import '../utils/app_theme.dart';
-import '../utils/formatters.dart';
+import 'money_text.dart';
 
 Color assetClassColor(AssetClass cls) {
   switch (cls) {
@@ -67,8 +67,9 @@ class AssetClassCard extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 2),
-          Text(
-            AppFormatters.rupiahCompact(value),
+          MoneyText(
+            amountInIdr: value,
+            compact: true,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ],
@@ -106,8 +107,9 @@ class CashSummaryCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text('Cash', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           const SizedBox(height: 2),
-          Text(
-            AppFormatters.rupiahCompact(value),
+          MoneyText(
+            amountInIdr: value,
+            compact: true,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ],

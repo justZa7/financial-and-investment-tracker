@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Mengambil kurs USD -> IDR dari API publik gratis (open.er-api.com,
@@ -9,6 +10,12 @@ class ExchangeRateService {
 
   /// Nilai default sebelum fetch pertama berhasil / kalau fetch gagal total.
   static double _cachedRate = 16300;
+
+  /// Pesan error asli dari percobaan fetch terakhir (null kalau sukses).
+  /// Berguna untuk debugging: beda dengan "tidak konek internet" yang
+  /// digeneralisir, ini nunjukkin exception SEBENARNYA (timeout, host
+  /// tidak ditemukan, certificate error, dsb).
+  static String? lastError;
 
   static double get fallbackRate => _cachedRate;
 
@@ -23,10 +30,18 @@ class ExchangeRateService {
         final rate = (data['rates']?['IDR'] as num?)?.toDouble();
         if (rate != null && rate > 0) {
           _cachedRate = rate;
+          lastError = null;
+        } else {
+          lastError = 'Response API tidak berisi field rates.IDR yang valid';
         }
+      } else {
+        lastError = 'HTTP ${res.statusCode} dari open.er-api.com';
       }
-    } catch (_) {
-      // Tidak ada koneksi / API down -> diamkan, pakai _cachedRate terakhir.
+    } catch (e) {
+      lastError = e.toString();
+      // Print ke console (kelihatan di `flutter run --release` / logcat)
+      // supaya gampang di-debug tanpa perlu breakpoint.
+      debugPrint('[ExchangeRateService] fetch gagal: $e');
     }
     return _cachedRate;
   }

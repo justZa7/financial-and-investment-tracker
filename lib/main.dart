@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'pages/main_navigation.dart';
 import 'providers/cashflow_provider.dart';
 import 'providers/debt_provider.dart';
+import 'providers/display_currency_provider.dart';
 import 'providers/exchange_rate_provider.dart';
 import 'providers/portfolio_provider.dart';
 import 'utils/app_theme.dart';
@@ -27,6 +28,7 @@ class FinanceTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PortfolioProvider()),
         ChangeNotifierProvider(create: (_) => DebtProvider()),
         ChangeNotifierProvider(create: (_) => ExchangeRateProvider()),
+        ChangeNotifierProvider(create: (_) => DisplayCurrencyProvider()),
       ],
       child: MaterialApp(
         title: 'Personal Finance & Investment Tracker',

@@ -34,12 +34,12 @@ class AppTheme {
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: 3,
+        shadowColor: Colors.black.withOpacity(0.06),
         color: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.grey.shade200),
         ),
         margin: EdgeInsets.zero,
       ),
