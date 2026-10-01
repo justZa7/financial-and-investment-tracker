@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_theme.dart';
+
 /// Header seksi konsisten (ikon dalam badge warna + judul + trailing
 /// opsional) dipakai di seluruh halaman supaya hierarki visual lebih jelas
 /// dibanding cuma Text biasa.
@@ -13,12 +15,13 @@ class SectionHeader extends StatelessWidget {
     super.key,
     required this.title,
     required this.icon,
-    this.color = const Color(0xFF2F6FED),
+    this.color = AppColors.matchaDarkest,
     this.trailing,
   });
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
@@ -33,7 +36,7 @@ class SectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: scheme.onSurface),
           ),
         ),
         if (trailing != null) trailing!,

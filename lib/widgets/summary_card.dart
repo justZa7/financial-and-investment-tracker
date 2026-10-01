@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_theme.dart';
+
 class SummaryCard extends StatelessWidget {
   final String title;
   final String? value;
@@ -22,12 +24,14 @@ class SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       child: Padding(
@@ -55,7 +59,7 @@ class SummaryCard extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontSize: 12.5,
-                      color: Colors.grey.shade600,
+                      color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w500,
                     ),
                     maxLines: 1,
@@ -69,7 +73,7 @@ class SummaryCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: valuePositive ? Colors.black87 : const Color(0xFFE5484D),
+                color: valuePositive ? scheme.onSurface : AppColors.loss,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -79,7 +83,7 @@ class SummaryCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 subtitle!,
-                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant),
               ),
             ],
           ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import 'money_text.dart';
 
@@ -46,15 +47,15 @@ class TransactionTile extends StatelessWidget {
   Color get _color {
     switch (item.kind) {
       case HistoryTxKind.income:
-        return const Color(0xFF17A673);
+        return AppColors.gain;
       case HistoryTxKind.expense:
-        return const Color(0xFFE5484D);
+        return AppColors.loss;
       case HistoryTxKind.assetBuy:
-        return const Color(0xFF2F6FED);
+        return AppColors.equity;
       case HistoryTxKind.assetSell:
-        return const Color(0xFF9B5DE5);
+        return AppColors.crypto;
       case HistoryTxKind.debtPayment:
-        return const Color(0xFFCB9A2B);
+        return AppColors.gold;
     }
   }
 
@@ -63,6 +64,7 @@ class TransactionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     // Nilai bertanda (+ untuk income/jual, - untuk expense/beli/bayar utang)
     // supaya MoneyText(signed:true) otomatis tampilkan prefix yang benar
     // sekaligus mengkonversi ke mata uang tampilan (IDR/USD) yang aktif.
@@ -71,10 +73,10 @@ class TransactionTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3)),
+          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
         ],
       ),
       child: Padding(
@@ -99,16 +101,16 @@ class TransactionTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(item.title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: scheme.onSurface)),
                   const SizedBox(height: 2),
                   if (item.subtitle.isNotEmpty)
                     Text(item.subtitle,
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
                   Text(AppFormatters.date(item.date),
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                      style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant.withOpacity(0.7))),
                 ],
               ),
             ),
@@ -121,23 +123,21 @@ class TransactionTile extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
-                    color: _isPositive ? const Color(0xFF17A673) : const Color(0xFFE5484D),
+                    color: _isPositive ? AppColors.gain : AppColors.loss,
                   ),
                 ),
                 if (item.realizedGainLoss != null) ...[
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text('Realized: ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      Text('Realized: ', style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant)),
                       MoneyText(
                         amountInIdr: item.realizedGainLoss!,
                         signed: true,
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: item.realizedGainLoss! >= 0
-                              ? const Color(0xFF17A673)
-                              : const Color(0xFFE5484D),
+                          color: item.realizedGainLoss! >= 0 ? AppColors.gain : AppColors.loss,
                         ),
                       ),
                     ],

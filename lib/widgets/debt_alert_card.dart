@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/debt_model.dart';
+import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import 'money_text.dart';
 
@@ -12,8 +13,9 @@ class DebtAlertCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final overdue = debt.isOverdue;
-    final color = overdue ? Colors.red : Colors.orange;
+    final color = overdue ? AppColors.loss : AppColors.gold;
     final typeLabel = debt.type == DebtType.debt ? 'Utang ke' : 'Piutang dari';
 
     return InkWell(
@@ -41,7 +43,7 @@ class DebtAlertCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     '$typeLabel ${debt.counterpartyName}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurface),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -51,7 +53,7 @@ class DebtAlertCard extends StatelessWidget {
             const SizedBox(height: 8),
             MoneyText(
               amountInIdr: debt.remaining,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: scheme.onSurface),
             ),
             const SizedBox(height: 4),
             Text(

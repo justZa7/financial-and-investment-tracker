@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/asset_holding_model.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../utils/app_theme.dart';
 import '../../utils/currency_input_formatter.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/display_currency_toggle.dart';
@@ -10,6 +11,7 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/money_text.dart';
 import '../../widgets/portfolio_item_tile.dart';
 import '../../widgets/section_header.dart';
+import '../../widgets/theme_mode_toggle.dart';
 
 class PortfolioPage extends StatefulWidget {
   const PortfolioPage({super.key});
@@ -47,6 +49,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
                 floating: true,
                 title: const Text('Portofolio', style: TextStyle(fontWeight: FontWeight.bold)),
                 actions: [
+                  const ThemeModeToggle(),
                   const DisplayCurrencyToggle(),
                   IconButton(
                     tooltip: 'Fetch Harga dari API (Crypto, Saham, Emas)',
@@ -70,18 +73,18 @@ class _PortfolioPageState extends State<PortfolioPage> {
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Icon(Icons.swipe_down_alt_rounded, size: 13, color: Colors.grey.shade400),
+                        Icon(Icons.swipe_down_alt_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
                         Text(
                           'Tarik ke bawah untuk refresh harga (Crypto/Saham/Emas otomatis)',
-                          style: TextStyle(fontSize: 10.5, color: Colors.grey.shade400),
+                          style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
                     const SizedBox(height: 18),
                     SectionHeader(
                       icon: Icons.filter_list_rounded,
-                      color: Colors.indigo,
+                      color: AppColors.matchaDarkest,
                       title: 'Holding Anda',
                     ),
                     const SizedBox(height: 12),
@@ -131,20 +134,20 @@ class _PortfolioPageState extends State<PortfolioPage> {
 
   Widget _summaryHeader(PortfolioProvider provider) {
     final gain = provider.totalGainLoss;
-    final gainColor = gain >= 0 ? const Color(0xFF17A673) : const Color(0xFFE5484D);
+    final gainColor = gain >= 0 ? AppColors.gain : AppColors.loss;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF6C5CE7), Color(0xFF2F6FED)],
+          colors: [AppColors.matchaDarkest, AppColors.matchaDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF6C5CE7).withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
@@ -225,7 +228,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
                   const SizedBox(height: 4),
                   Text(
                     'Harga selalu diisi/ditampilkan dalam Rupiah (IDR) di sini, terlepas dari mata uang tampilan yang aktif.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 16),
                   Expanded(
@@ -311,7 +314,7 @@ class _PortfolioPageState extends State<PortfolioPage> {
               children: [
                 if (success.isNotEmpty) ...[
                   Text('Berhasil diperbarui (${success.length})',
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF17A673), fontSize: 13)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gain, fontSize: 13)),
                   const SizedBox(height: 6),
                   ...success.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
@@ -321,12 +324,12 @@ class _PortfolioPageState extends State<PortfolioPage> {
                 ],
                 if (failed.isNotEmpty) ...[
                   Text('Tidak bisa diperbarui otomatis (${failed.length})',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade800, fontSize: 13)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 13)),
                   const SizedBox(height: 6),
                   ...failed.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Text('• ${r.ticker}: ${r.error}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                            style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                       )),
                 ],
               ],

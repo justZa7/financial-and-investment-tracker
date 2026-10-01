@@ -42,13 +42,14 @@ class AssetClassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = assetClassColor(assetClass);
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 148,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,13 +65,13 @@ class AssetClassCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             assetClass.label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
           MoneyText(
             amountInIdr: value,
             compact: true,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: scheme.onSurface),
           ),
         ],
       ),
@@ -84,13 +85,14 @@ class CashSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 148,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,16 +103,15 @@ class CashSummaryCard extends StatelessWidget {
               color: AppColors.cash.withOpacity(0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.account_balance_wallet_outlined,
-                size: 16, color: AppColors.cash),
+            child: const Icon(Icons.account_balance_wallet_outlined, size: 16, color: AppColors.cash),
           ),
           const SizedBox(height: 10),
-          Text('Cash', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text('Cash', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           const SizedBox(height: 2),
           MoneyText(
             amountInIdr: value,
             compact: true,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: scheme.onSurface),
           ),
         ],
       ),

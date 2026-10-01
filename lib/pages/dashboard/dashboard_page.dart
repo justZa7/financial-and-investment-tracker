@@ -8,6 +8,7 @@ import '../../providers/display_currency_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
 import '../../services/calculation_service.dart';
+import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/allocation_pie_chart.dart';
 import '../../widgets/asset_class_card.dart';
@@ -17,6 +18,7 @@ import '../../widgets/money_text.dart';
 import '../../widgets/performance_line_chart.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/summary_card.dart';
+import '../../widgets/theme_mode_toggle.dart';
 import '../../models/asset_holding_model.dart';
 
 class DashboardPage extends StatelessWidget {
@@ -54,6 +56,7 @@ class DashboardPage extends StatelessWidget {
             floating: true,
             title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
             actions: const [
+              ThemeModeToggle(),
               DisplayCurrencyToggle(),
             ],
           ),
@@ -73,7 +76,7 @@ class DashboardPage extends StatelessWidget {
                         value: '${savingsRate.toStringAsFixed(1)}%',
                         subtitle: 'Bulan ini',
                         icon: Icons.savings_outlined,
-                        color: Colors.teal,
+                        color: AppColors.gain,
                         valuePositive: savingsRate >= 0,
                       ),
                     ),
@@ -84,7 +87,7 @@ class DashboardPage extends StatelessWidget {
                         value: AppFormatters.percent(portfolio.annualReturnPercent),
                         subtitle: 'Seluruh portofolio',
                         icon: Icons.trending_up_rounded,
-                        color: Colors.indigo,
+                        color: AppColors.matchaDarkest,
                         valuePositive: portfolio.annualReturnPercent >= 0,
                       ),
                     ),
@@ -93,7 +96,7 @@ class DashboardPage extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // List Aset per kelas
-                SectionHeader(icon: Icons.pie_chart_rounded, color: Colors.indigo, title: 'Aset Anda'),
+                SectionHeader(icon: Icons.pie_chart_rounded, color: AppColors.matchaDarkest, title: 'Aset Anda'),
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 124,
@@ -121,7 +124,7 @@ class DashboardPage extends StatelessWidget {
                         valueWidget: MoneyText(amountInIdr: cashFlow.averageMonthlyIncome, compact: true),
                         subtitle: 'per bulan',
                         icon: Icons.arrow_downward_rounded,
-                        color: const Color(0xFF17A673),
+                        color: AppColors.gain,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -131,7 +134,7 @@ class DashboardPage extends StatelessWidget {
                         valueWidget: MoneyText(amountInIdr: cashFlow.averageMonthlyExpense, compact: true),
                         subtitle: 'per bulan',
                         icon: Icons.arrow_upward_rounded,
-                        color: const Color(0xFFE5484D),
+                        color: AppColors.loss,
                       ),
                     ),
                   ],
@@ -147,7 +150,7 @@ class DashboardPage extends StatelessWidget {
                       children: [
                         const SectionHeader(
                           icon: Icons.donut_large_rounded,
-                          color: Colors.purple,
+                          color: AppColors.crypto,
                           title: 'Alokasi Antar Aset',
                         ),
                         const SizedBox(height: 16),
@@ -170,7 +173,7 @@ class DashboardPage extends StatelessWidget {
                       children: [
                         const SectionHeader(
                           icon: Icons.show_chart_rounded,
-                          color: Color(0xFF2F6FED),
+                          color: AppColors.matchaDarkest,
                           title: 'Grafik Performance',
                         ),
                         const SizedBox(height: 12),
@@ -192,7 +195,7 @@ class DashboardPage extends StatelessWidget {
                 if (debt.dueSoonAlerts.isNotEmpty) ...[
                   const SectionHeader(
                     icon: Icons.warning_amber_rounded,
-                    color: Colors.orange,
+                    color: AppColors.gold,
                     title: 'Peringatan Jatuh Tempo',
                   ),
                   const SizedBox(height: 12),
@@ -226,14 +229,14 @@ class DashboardPage extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF2F6FED), Color(0xFF6C5CE7)],
+          colors: [AppColors.matchaDarkest, AppColors.matchaDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2F6FED).withOpacity(0.25),
+            color: AppColors.matchaDarkest.withOpacity(0.25),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),

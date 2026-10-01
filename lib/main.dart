@@ -8,6 +8,7 @@ import 'providers/debt_provider.dart';
 import 'providers/display_currency_provider.dart';
 import 'providers/exchange_rate_provider.dart';
 import 'providers/portfolio_provider.dart';
+import 'providers/theme_mode_provider.dart';
 import 'utils/app_theme.dart';
 
 Future<void> main() async {
@@ -29,12 +30,19 @@ class FinanceTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DebtProvider()),
         ChangeNotifierProvider(create: (_) => ExchangeRateProvider()),
         ChangeNotifierProvider(create: (_) => DisplayCurrencyProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeModeProvider()),
       ],
-      child: MaterialApp(
-        title: 'Personal Finance & Investment Tracker',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: const MainNavigation(),
+      child: Consumer<ThemeModeProvider>(
+        builder: (context, themeModeProvider, _) {
+          return MaterialApp(
+            title: 'Personal Finance & Investment Tracker',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: themeModeProvider.mode,
+            home: const MainNavigation(),
+          );
+        },
       ),
     );
   }

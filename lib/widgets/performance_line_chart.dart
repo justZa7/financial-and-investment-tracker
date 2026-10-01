@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../utils/app_theme.dart';
 import '../utils/input_currency.dart';
 import '../utils/money_formatter.dart';
 
@@ -38,11 +39,11 @@ class PerformanceLineChart extends StatelessWidget {
       children: [
         Row(
           children: [
-            _legendDot('Portofolio', const Color(0xFF2F6FED)),
+            _legendDot(context, 'Portofolio', AppColors.matchaDarkest),
             const SizedBox(width: 14),
-            _legendDot('Pemasukan', const Color(0xFF17A673)),
+            _legendDot(context, 'Pemasukan', AppColors.gain),
             const SizedBox(width: 14),
-            _legendDot('Pengeluaran', const Color(0xFFE5484D)),
+            _legendDot(context, 'Pengeluaran', AppColors.loss),
           ],
         ),
         const SizedBox(height: 14),
@@ -57,7 +58,7 @@ class PerformanceLineChart extends StatelessWidget {
                 drawVerticalLine: false,
                 horizontalInterval: maxY == 0 ? 20 : maxY / 4,
                 getDrawingHorizontalLine: (v) => FlLine(
-                  color: Colors.grey.shade200,
+                  color: Theme.of(context).colorScheme.outlineVariant,
                   strokeWidth: 1,
                 ),
               ),
@@ -79,7 +80,7 @@ class PerformanceLineChart extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(
                           labels[idx],
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       );
                     },
@@ -97,9 +98,9 @@ class PerformanceLineChart extends StatelessWidget {
                 ),
               ),
               lineBarsData: [
-                _line(portfolio, const Color(0xFF2F6FED)),
-                _line(income, const Color(0xFF17A673)),
-                _line(expense, const Color(0xFFE5484D)),
+                _line(portfolio, AppColors.matchaDarkest),
+                _line(income, AppColors.gain),
+                _line(expense, AppColors.loss),
               ],
             ),
           ),
@@ -126,7 +127,7 @@ class PerformanceLineChart extends StatelessWidget {
     );
   }
 
-  Widget _legendDot(String label, Color color) {
+  Widget _legendDot(BuildContext context, String label, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -136,7 +137,7 @@ class PerformanceLineChart extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }

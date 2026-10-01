@@ -8,6 +8,7 @@ import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../utils/app_theme.dart';
 import '../../utils/currency_input_formatter.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/currency_amount_field.dart';
@@ -287,7 +288,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               _dateField(_date, (d) => setState(() => _date = d)),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
+                Text(_error!, style: const TextStyle(color: AppColors.loss, fontSize: 12)),
               ],
               const SizedBox(height: 24),
               FilledButton(

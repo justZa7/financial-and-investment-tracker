@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 
 import '../../models/debt_model.dart';
 import '../../providers/debt_provider.dart';
+import '../../utils/app_theme.dart';
 import '../../utils/currency_input_formatter.dart';
 import '../../widgets/debt_item_card.dart';
 import '../../widgets/display_currency_toggle.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/money_text.dart';
+import '../../widgets/theme_mode_toggle.dart';
 
 class DebtsPage extends StatefulWidget {
   const DebtsPage({super.key});
@@ -34,6 +36,7 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
                   child: Text('Utang & Piutang',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                 ),
+                const ThemeModeToggle(),
                 const DisplayCurrencyToggle(),
               ],
             ),
@@ -72,7 +75,7 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
             label: 'Total Piutang Anda',
             amountInIdr: provider.totalReceivable,
             icon: Icons.arrow_downward_rounded,
-            colors: const [Color(0xFF17A673), Color(0xFF11A67D)],
+            colors: const [AppColors.matchaDark, AppColors.matchaDarkest],
           ),
         ),
         const SizedBox(width: 12),
@@ -81,7 +84,7 @@ class _DebtsPageState extends State<DebtsPage> with SingleTickerProviderStateMix
             label: 'Total Utang Anda',
             amountInIdr: provider.totalDebt,
             icon: Icons.arrow_upward_rounded,
-            colors: const [Color(0xFFE5484D), Color(0xFFC53A40)],
+            colors: const [AppColors.loss, Color(0xFF9A3F26)],
           ),
         ),
       ],

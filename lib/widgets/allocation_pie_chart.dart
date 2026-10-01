@@ -2,7 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../models/asset_holding_model.dart';
-import '../utils/formatters.dart';
+import '../utils/app_theme.dart';
 import 'asset_class_card.dart';
 
 class AllocationPieChart extends StatefulWidget {
@@ -30,16 +30,19 @@ class _AllocationPieChartState extends State<AllocationPieChart> {
     ].where((e) => e.value > 0).toList();
 
     final colors = <String, Color>{
-      'Cash': const Color(0xFF6E7B8B),
+      'Cash': AppColors.cash,
       for (final cls in AssetClass.values) cls.label: assetClassColor(cls),
     };
 
     final total = entries.fold(0.0, (sum, e) => sum + e.value);
+    final scheme = Theme.of(context).colorScheme;
 
     if (total <= 0) {
-      return const SizedBox(
+      return SizedBox(
         height: 180,
-        child: Center(child: Text('Belum ada data alokasi')),
+        child: Center(
+          child: Text('Belum ada data alokasi', style: TextStyle(color: scheme.onSurfaceVariant)),
+        ),
       );
     }
 
@@ -106,12 +109,11 @@ class _AllocationPieChartState extends State<AllocationPieChart> {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(e.key, style: const TextStyle(fontSize: 12)),
+                      child: Text(e.key, style: TextStyle(fontSize: 12, color: scheme.onSurface)),
                     ),
                     Text(
                       '${pct.toStringAsFixed(1)}%',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: scheme.onSurface),
                     ),
                   ],
                 ),

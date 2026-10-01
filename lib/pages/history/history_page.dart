@@ -7,9 +7,18 @@ import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/portfolio_provider.dart';
 import '../../utils/formatters.dart';
+import '../../utils/sort_utils.dart';
 import '../../widgets/display_currency_toggle.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/theme_mode_toggle.dart';
 import '../../widgets/transaction_tile.dart';
+
+/// Mode urutan daftar riwayat transaksi.
+/// [newest] adalah DEFAULT (sesuai urutan yang sudah ada sebelumnya: dari
+/// yang paling baru tanggalnya). [amountDesc]/[amountAsc] mengurutkan
+/// berdasarkan NOMINAL transaksi (bukan tanggal) memakai Merge Sort manual
+/// (lihat lib/utils/sort_utils.dart), bukan `List.sort()` bawaan Dart.
+enum _SortMode { newest, amountDesc, amountAsc }
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -21,6 +30,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   DateTimeRange? _dateRange;
   final Set<HistoryTxKind> _selectedKinds = {...HistoryTxKind.values};
+  _SortMode _sortMode = _SortMode.newest; // default: tanggal terbaru dulu
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +45,10 @@ class _HistoryPageState extends State<HistoryPage> {
           (item.date.isAfter(_dateRange!.start.subtract(const Duration(days: 1))) &&
               item.date.isBefore(_dateRange!.end.add(const Duration(days: 1))));
       return inKind && inRange;
-    }).toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    }).toList();
+
+    // Merge Sort manual (O(n log n), stabil) — bukan List.sort() bawaan.
+    final sorted = mergeSort(filtered, _comparatorFor(_sortMode));
 
     return SafeArea(
       child: Column(
@@ -49,6 +61,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 Text('Riwayat Transaksi',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                 const Spacer(),
+                const ThemeModeToggle(),
                 const DisplayCurrencyToggle(),
                 IconButton(
                   onPressed: () async {
@@ -96,16 +109,66 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
           ),
           const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.sort_rounded, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Text('Urutkan:', style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 32,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _sortChip('Default', _SortMode.newest),
+                        _sortChip('Nominal Terbesar', _SortMode.amountDesc),
+                        _sortChip('Nominal Terkecil', _SortMode.amountAsc),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           Expanded(
-            child: filtered.isEmpty
+            child: sorted.isEmpty
                 ? const EmptyState(icon: Icons.receipt_long_outlined, title: 'Tidak ada transaksi')
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, i) => TransactionTile(item: filtered[i]),
+                    itemCount: sorted.length,
+                    itemBuilder: (context, i) => TransactionTile(item: sorted[i]),
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Comparator untuk tiap mode sort. Dipisah dari UI supaya gampang
+  /// ditest/diverifikasi terpisah (lihat test/sort_utils_test.dart).
+  int Function(HistoryItem, HistoryItem) _comparatorFor(_SortMode mode) {
+    switch (mode) {
+      case _SortMode.newest:
+        return (a, b) => b.date.compareTo(a.date);
+      case _SortMode.amountDesc:
+        return (a, b) => b.amount.compareTo(a.amount);
+      case _SortMode.amountAsc:
+        return (a, b) => a.amount.compareTo(b.amount);
+    }
+  }
+
+  Widget _sortChip(String label, _SortMode mode) {
+    final selected = _sortMode == mode;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 11)),
+        selected: selected,
+        onSelected: (_) => setState(() => _sortMode = mode),
       ),
     );
   }

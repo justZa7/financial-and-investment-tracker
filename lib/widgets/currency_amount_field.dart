@@ -95,7 +95,7 @@ class CurrencyAmountFieldState extends State<CurrencyAmountField> {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               '≈ ${AppFormatters.rupiah(amountInIdr)}  (kurs 1 USD = ${AppFormatters.rupiah(widget.exchangeRate)})',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
       ],
