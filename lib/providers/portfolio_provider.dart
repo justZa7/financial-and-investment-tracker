@@ -210,4 +210,17 @@ class PortfolioProvider extends ChangeNotifier {
     }
     return results;
   }
+
+  /// Fetch & terapkan harga pasar untuk SATU ticker saja — dipakai otomatis
+  /// setelah transaksi Beli/Jual disimpan dari form Input, supaya harga
+  /// pasar langsung ter-update TANPA user perlu menekan tombol refresh
+  /// manual. Diam-diam tidak melakukan apa-apa kalau API tidak mendukung
+  /// kelas asetnya (misal Reksadana) atau fetch gagal — tidak mengganggu
+  /// alur simpan transaksi yang sudah berhasil.
+  Future<void> fetchSinglePrice(String ticker, AssetClass assetClass) async {
+    final quote = await MarketDataService.fetchQuote(ticker, assetClass);
+    if (quote != null) {
+      updateMarketPrice(ticker, quote.price);
+    }
+  }
 }

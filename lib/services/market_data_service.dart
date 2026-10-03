@@ -5,10 +5,11 @@ import 'package:http/http.dart' as http;
 import '../models/asset_holding_model.dart';
 import 'exchange_rate_service.dart';
 
-/// Hasil fetch harga otomatis untuk satu ticker.
+/// Hasil fetch harga otomatis untuk satu ticker (dipakai saat bulk-refresh
+/// di halaman Portfolio).
 class FetchPriceResult {
   final String ticker;
-  final double? price; // null kalau gagal / tidak didukung
+  final double? price;
   final String? error;
 
   FetchPriceResult({required this.ticker, this.price, this.error});
@@ -16,38 +17,51 @@ class FetchPriceResult {
   bool get success => price != null;
 }
 
-/// Service untuk mengambil harga pasar terkini dari API publik, dipanggil
-/// dari tombol "Fetch Harga dari API" / pull-to-refresh di halaman Portfolio.
+/// Kuotasi harga lengkap untuk SATU aset — harga terkini + histori ringkas
+/// untuk sparkline chart (kalau API-nya menyediakan). Dipakai untuk preview
+/// live saat user mengetik ticker di form Input, dan untuk auto-update
+/// setelah transaksi Beli/Jual disimpan.
+class AssetQuote {
+  final double price;
+  /// Titik harga historis (kronologis, lama -> baru), basis IDR. Bisa
+  /// kosong kalau API untuk kelas aset tsb tidak menyediakan histori
+  /// (misal Emas) — UI harus menangani list kosong dengan baik.
+  final List<double> history;
+
+  AssetQuote({required this.price, this.history = const []});
+
+  /// Perubahan dari titik pertama ke terakhir di [history], dalam %.
+  /// Null kalau histori tidak cukup untuk dihitung.
+  double? get changePercent {
+    if (history.length < 2 || history.first == 0) return null;
+    return ((history.last - history.first) / history.first) * 100;
+  }
+}
+
+/// Service untuk mengambil harga pasar terkini (+ histori ringkas) dari API
+/// publik — dipakai di 2 tempat: (1) tombol ☁️/pull-to-refresh di halaman
+/// Portfolio (lewat [fetchAll], bulk, banyak holding sekaligus), dan
+/// (2) live-preview saat mengetik ticker di form Input serta auto-update
+/// setelah Beli/Jual disimpan (lewat [fetchQuote], satu ticker).
 ///
-/// STATUS DUKUNGAN PER KELAS ASET (penting dibaca sebelum demo):
-/// - **Crypto**  : didukung penuh lewat CoinGecko (gratis, tanpa API key).
-/// - **Equity**  : didukung lewat Yahoo Finance (endpoint publik/unofficial
-///   `query1.finance.yahoo.com`, gratis, tanpa API key). Ticker tanpa titik
-///   otomatis dianggap saham IDX dan ditambah ".JK" (contoh: BBCA -> BBCA.JK).
-/// - **Gold**    : didukung lewat gold-api.com (gratis, tanpa API key) untuk
-///   harga emas spot dunia (USD/troy ounce), dikonversi ke IDR/gram pakai
-///   kurs dari ExchangeRateService. ⚠️ Ini harga SPOT emas dunia, BUKAN
-///   harga resmi Antam/toko emas lokal (yang biasanya ada premium/margin
-///   tambahan) — anggap sebagai estimasi acuan, bukan harga jual-beli pasti.
-/// - **Reksadana/Money Market**: SENGAJA tidak difetch otomatis — NAB per
-///   produk reksadana pasar uang hanya tersedia lewat API masing-masing
-///   platform sekuritas/manajer investasi (tidak ada API publik gratis
-///   yang terstandarisasi). Selalu pakai "Update Harga Manual" untuk ini.
+/// STATUS DUKUNGAN PER KELAS ASET:
+/// - **Crypto**  : CoinGecko `market_chart` (gratis, tanpa API key) — kasih
+///   harga terkini SEKALIGUS histori 7 hari untuk sparkline.
+/// - **Equity**  : Yahoo Finance `chart` endpoint (gratis, unofficial) —
+///   kasih harga terkini + histori harian ringkas. Ticker tanpa titik
+///   otomatis dianggap saham IDX (+".JK").
+/// - **Gold**    : gold-api.com (gratis, tanpa API key) — HANYA harga spot
+///   terkini, TIDAK ada histori/chart dari API ini. Estimasi dari harga
+///   spot emas dunia (USD/troy-ounce → IDR/gram), BUKAN harga resmi Antam.
+/// - **Reksadana/Money Market**: SENGAJA tidak didukung — NAB harian tidak
+///   tersedia lewat API publik gratis. [fetchQuote] mengembalikan null.
 ///
-/// ⚠️ Catatan umum: endpoint Yahoo Finance & gold-api.com di atas TIDAK
-/// RESMI didokumentasikan oleh penyedianya — dipakai luas oleh komunitas
-/// developer, cukup andal untuk demo/skala kecil, tapi bisa berubah format
-/// atau di-*rate-limit* sewaktu-waktu tanpa pemberitahuan resmi. Untuk
-/// kebutuhan produksi/skala besar, pertimbangkan API berbayar resmi.
-///
-/// Untuk kelas aset yang sengaja tidak difetch (Reksadana), [fetchAll]
-/// tetap mengembalikan [FetchPriceResult] dengan `error` terisi supaya UI
-/// bisa menampilkan alasannya ke user, alih-alih diam-diam gagal.
+/// ⚠️ Endpoint Yahoo Finance & gold-api.com TIDAK RESMI didokumentasikan
+/// penyedianya — cukup andal untuk demo, bisa berubah sewaktu-waktu tanpa
+/// pemberitahuan. Untuk produksi, pertimbangkan API resmi berbayar.
 class MarketDataService {
   MarketDataService._();
 
-  /// Mapping ticker umum -> id CoinGecko. Tambahkan sendiri kalau perlu
-  /// ticker crypto lain (lihat daftar id di https://api.coingecko.com/api/v3/coins/list).
   static const Map<String, String> _coingeckoIds = {
     'BTC': 'bitcoin',
     'ETH': 'ethereum',
@@ -62,27 +76,154 @@ class MarketDataService {
     'DOT': 'polkadot',
   };
 
-  /// 1 troy ounce = 31.1034768 gram — dipakai konversi harga emas dunia
-  /// (per ounce) ke satuan yang dipakai app ini (per gram).
   static const double _gramsPerTroyOunce = 31.1034768;
 
+  // ---------------------------------------------------------------------
+  // SATU TICKER — dipakai live-preview di form Input & auto-update pasca-save
+  // ---------------------------------------------------------------------
+
+  /// Null kalau kelas aset tidak didukung (Money Market), ticker kosong,
+  /// atau fetch gagal karena sebab apapun. Dipakai untuk live-preview di
+  /// form Input, di mana detail pesan error kurang penting (UI cukup
+  /// tampilkan "tidak ditemukan, isi manual") — untuk diagnostik error
+  /// yang lebih rinci (dipakai bulk-refresh Portfolio), lihat [fetchAll].
+  static Future<AssetQuote?> fetchQuote(String ticker, AssetClass assetClass) async {
+    if (ticker.trim().isEmpty || assetClass == AssetClass.moneyMarket) return null;
+    try {
+      return await _dispatch(ticker, assetClass);
+    } catch (e) {
+      debugPrint('[MarketDataService] fetchQuote($ticker) gagal: $e');
+      return null;
+    }
+  }
+
+  static Future<AssetQuote?> _dispatch(String ticker, AssetClass assetClass) {
+    switch (assetClass) {
+      case AssetClass.crypto:
+        return _fetchCryptoQuote(ticker);
+      case AssetClass.equity:
+        return _fetchEquityQuote(ticker);
+      case AssetClass.gold:
+        return _fetchGoldQuote();
+      case AssetClass.moneyMarket:
+        return Future.value(null);
+    }
+  }
+
+  static Future<AssetQuote?> _fetchCryptoQuote(String ticker) async {
+    final id = _coingeckoIds[ticker.trim().toUpperCase()];
+    if (id == null) return null;
+
+    final uri = Uri.parse('https://api.coingecko.com/api/v3/coins/$id/market_chart?vs_currency=idr&days=7');
+    final res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final rawPrices = (data['prices'] as List?) ?? [];
+    if (rawPrices.isEmpty) return null;
+
+    final allPoints = rawPrices
+        .map((p) => (p as List)[1] as num)
+        .map((n) => n.toDouble())
+        .toList();
+
+    // Downsample supaya chart tetap ringan & halus (CoinGecko bisa kasih
+    // ratusan titik untuk rentang 7 hari).
+    final history = _downsample(allPoints, 24);
+    return AssetQuote(price: allPoints.last, history: history);
+  }
+
+  static String _toYahooSymbol(String ticker) {
+    final t = ticker.trim().toUpperCase();
+    if (t.contains('.')) return t;
+    return '$t.JK';
+  }
+
+  static Future<AssetQuote?> _fetchEquityQuote(String ticker) async {
+    final symbol = _toYahooSymbol(ticker);
+    final uri = Uri.parse(
+        'https://query1.finance.yahoo.com/v8/finance/chart/$symbol?range=1mo&interval=1d');
+    final res = await http.get(
+      uri,
+      headers: {'User-Agent': 'Mozilla/5.0 (compatible; FinanceTrackerApp/1.0)'},
+    ).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final resultList = data['chart']?['result'] as List?;
+    if (resultList == null || resultList.isEmpty) return null;
+    final result = resultList.first as Map<String, dynamic>;
+
+    final price = (result['meta']?['regularMarketPrice'] as num?)?.toDouble();
+    if (price == null) return null;
+
+    final closes = (result['indicators']?['quote'] as List?)?.isNotEmpty == true
+        ? (result['indicators']['quote'][0]['close'] as List?)
+        : null;
+
+    final history = (closes ?? [])
+        .where((c) => c != null)
+        .map((c) => (c as num).toDouble())
+        .toList();
+
+    return AssetQuote(price: price, history: _downsample(history, 24));
+  }
+
+  static Future<AssetQuote?> _fetchGoldQuote() async {
+    final uri = Uri.parse('https://api.gold-api.com/price/XAU');
+    final res = await http.get(uri).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final pricePerOunceUsd = (data['price'] as num?)?.toDouble();
+    if (pricePerOunceUsd == null) return null;
+
+    final usdToIdr = await ExchangeRateService.fetchUsdToIdrRate();
+    final pricePerGramIdr = (pricePerOunceUsd / _gramsPerTroyOunce) * usdToIdr;
+
+    // gold-api.com tidak menyediakan histori -> history kosong, UI akan
+    // menampilkan state "grafik belum tersedia" tanpa chart.
+    return AssetQuote(price: pricePerGramIdr, history: const []);
+  }
+
+  static List<double> _downsample(List<double> points, int maxPoints) {
+    if (points.length <= maxPoints) return points;
+    final step = points.length / maxPoints;
+    return List.generate(maxPoints, (i) => points[(i * step).floor()]);
+  }
+
+  // ---------------------------------------------------------------------
+  // BULK — dipakai tombol ☁️ / pull-to-refresh di halaman Portfolio
+  // ---------------------------------------------------------------------
   static Future<List<FetchPriceResult>> fetchAll(List<AssetHoldingModel> holdings) async {
     final results = <FetchPriceResult>[];
 
-    final cryptoHoldings = holdings.where((h) => h.assetClass == AssetClass.crypto).toList();
-    if (cryptoHoldings.isNotEmpty) {
-      results.addAll(await _fetchCryptoBatch(cryptoHoldings.map((h) => h.ticker).toList()));
-    }
-
-    final equityHoldings = holdings.where((h) => h.assetClass == AssetClass.equity).toList();
-    if (equityHoldings.isNotEmpty) {
-      results.addAll(await _fetchEquityBatch(equityHoldings.map((h) => h.ticker).toList()));
-    }
-
-    final goldHoldings = holdings.where((h) => h.assetClass == AssetClass.gold).toList();
-    if (goldHoldings.isNotEmpty) {
-      results.addAll(await _fetchGoldBatch(goldHoldings.map((h) => h.ticker).toList()));
-    }
+    final fetchable = holdings.where((h) => h.assetClass != AssetClass.moneyMarket).toList();
+    final futures = fetchable.map((h) async {
+      try {
+        final quote = await _dispatch(h.ticker, h.assetClass);
+        if (quote != null) {
+          return FetchPriceResult(ticker: h.ticker, price: quote.price);
+        }
+        final reason = switch (h.assetClass) {
+          AssetClass.equity =>
+            'Simbol "${h.ticker}" tidak ditemukan di Yahoo Finance. Cek penulisan ticker.',
+          AssetClass.crypto =>
+            'Ticker "${h.ticker}" belum ada di mapping CoinGecko (MarketDataService._coingeckoIds).',
+          AssetClass.gold => 'Response API harga emas tidak sesuai format yang diharapkan.',
+          AssetClass.moneyMarket => '-',
+        };
+        return FetchPriceResult(ticker: h.ticker, error: reason);
+      } catch (e) {
+        // Pesan error ASLI (bukan digeneralisir) supaya gampang di-debug —
+        // misal kalau release build gagal fetch tapi debug jalan normal,
+        // exception sebenarnya (SocketException, HandshakeException,
+        // TimeoutException, dll) akan kelihatan di sini.
+        debugPrint('[MarketDataService] fetch ${h.ticker} (${h.assetClass}) gagal: $e');
+        return FetchPriceResult(ticker: h.ticker, error: 'Gagal terhubung ke API: $e');
+      }
+    });
+    results.addAll(await Future.wait(futures));
 
     for (final h in holdings.where((h) => h.assetClass == AssetClass.moneyMarket)) {
       results.add(FetchPriceResult(
@@ -93,154 +234,5 @@ class MarketDataService {
     }
 
     return results;
-  }
-
-  // ---------------------------------------------------------------------
-  // CRYPTO — CoinGecko
-  // ---------------------------------------------------------------------
-  static Future<List<FetchPriceResult>> _fetchCryptoBatch(List<String> tickers) async {
-    final uniqueTickers = tickers.toSet().toList();
-    final ids = uniqueTickers
-        .map((t) => _coingeckoIds[t.toUpperCase()])
-        .whereType<String>()
-        .toSet()
-        .join(',');
-
-    if (ids.isEmpty) {
-      return uniqueTickers
-          .map((t) => FetchPriceResult(
-                ticker: t,
-                error: 'Ticker "$t" belum ada di mapping CoinGecko. Tambahkan di MarketDataService._coingeckoIds.',
-              ))
-          .toList();
-    }
-
-    try {
-      final uri = Uri.parse('https://api.coingecko.com/api/v3/simple/price?ids=$ids&vs_currencies=idr');
-      final res = await http.get(uri).timeout(const Duration(seconds: 10));
-
-      if (res.statusCode != 200) {
-        return uniqueTickers
-            .map((t) => FetchPriceResult(ticker: t, error: 'Gagal fetch (HTTP ${res.statusCode})'))
-            .toList();
-      }
-
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-
-      return uniqueTickers.map((t) {
-        final id = _coingeckoIds[t.toUpperCase()];
-        final price = id != null ? (data[id]?['idr'] as num?)?.toDouble() : null;
-        if (price == null) {
-          return FetchPriceResult(ticker: t, error: 'Data harga tidak ditemukan untuk $t');
-        }
-        return FetchPriceResult(ticker: t, price: price);
-      }).toList();
-    } catch (e) {
-      debugPrint('[MarketDataService] fetch crypto gagal: $e');
-      return uniqueTickers
-          .map((t) => FetchPriceResult(ticker: t, error: 'Gagal terhubung ke API: $e'))
-          .toList();
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // EQUITY — Yahoo Finance (unofficial, gratis, tanpa API key)
-  // ---------------------------------------------------------------------
-
-  /// Ubah ticker lokal ("BBCA") jadi simbol Yahoo Finance ("BBCA.JK").
-  /// Kalau ticker sudah mengandung titik (misal user isi manual "AAPL"
-  /// untuk saham AS tanpa suffix, atau sudah pakai suffix lain seperti
-  /// ".JK"/".L"/dst), dipakai apa adanya tanpa ditambah ".JK".
-  static String _toYahooSymbol(String ticker) {
-    final t = ticker.trim().toUpperCase();
-    if (t.contains('.')) return t;
-    return '$t.JK'; // default: asumsikan saham IDX (Bursa Efek Indonesia)
-  }
-
-  static Future<List<FetchPriceResult>> _fetchEquityBatch(List<String> tickers) async {
-    final uniqueTickers = tickers.toSet().toList();
-    // Fetch paralel per simbol (endpoint chart Yahoo hanya menerima 1 simbol/request).
-    final futures = uniqueTickers.map(_fetchSingleEquity);
-    return Future.wait(futures);
-  }
-
-  static Future<FetchPriceResult> _fetchSingleEquity(String ticker) async {
-    final symbol = _toYahooSymbol(ticker);
-    try {
-      final uri = Uri.parse('https://query1.finance.yahoo.com/v8/finance/chart/$symbol');
-      final res = await http.get(
-        uri,
-        // Beberapa deployment Yahoo menolak request tanpa User-Agent browser.
-        headers: {'User-Agent': 'Mozilla/5.0 (compatible; FinanceTrackerApp/1.0)'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (res.statusCode != 200) {
-        return FetchPriceResult(
-          ticker: ticker,
-          error: 'Gagal fetch $symbol dari Yahoo Finance (HTTP ${res.statusCode})',
-        );
-      }
-
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final resultList = data['chart']?['result'] as List?;
-      final result = (resultList != null && resultList.isNotEmpty)
-          ? resultList.first as Map<String, dynamic>
-          : null;
-
-      final price = (result?['meta']?['regularMarketPrice'] as num?)?.toDouble();
-
-      if (price == null) {
-        return FetchPriceResult(
-          ticker: ticker,
-          error: 'Simbol "$symbol" tidak ditemukan di Yahoo Finance. '
-              'Cek penulisan ticker (untuk saham IDX pastikan tanpa suffix, contoh: BBCA).',
-        );
-      }
-
-      return FetchPriceResult(ticker: ticker, price: price);
-    } catch (e) {
-      debugPrint('[MarketDataService] fetch equity $symbol gagal: $e');
-      return FetchPriceResult(
-        ticker: ticker,
-        error: 'Gagal terhubung ke Yahoo Finance untuk $symbol: $e',
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------
-  // GOLD — gold-api.com (unofficial, gratis, tanpa API key)
-  // ---------------------------------------------------------------------
-  static Future<List<FetchPriceResult>> _fetchGoldBatch(List<String> tickers) async {
-    final uniqueTickers = tickers.toSet().toList();
-    try {
-      final uri = Uri.parse('https://api.gold-api.com/price/XAU');
-      final res = await http.get(uri).timeout(const Duration(seconds: 10));
-
-      if (res.statusCode != 200) {
-        return uniqueTickers
-            .map((t) => FetchPriceResult(ticker: t, error: 'Gagal fetch harga emas (HTTP ${res.statusCode})'))
-            .toList();
-      }
-
-      final data = jsonDecode(res.body) as Map<String, dynamic>;
-      final pricePerOunceUsd = (data['price'] as num?)?.toDouble();
-
-      if (pricePerOunceUsd == null) {
-        return uniqueTickers
-            .map((t) => FetchPriceResult(ticker: t, error: 'Response API harga emas tidak sesuai format yang diharapkan'))
-            .toList();
-      }
-
-      // Konversi: USD/troy-ounce -> USD/gram -> IDR/gram (pakai kurs terkini).
-      final usdToIdr = await ExchangeRateService.fetchUsdToIdrRate();
-      final pricePerGramIdr = (pricePerOunceUsd / _gramsPerTroyOunce) * usdToIdr;
-
-      return uniqueTickers.map((t) => FetchPriceResult(ticker: t, price: pricePerGramIdr)).toList();
-    } catch (e) {
-      debugPrint('[MarketDataService] fetch gold gagal: $e');
-      return uniqueTickers
-          .map((t) => FetchPriceResult(ticker: t, error: 'Gagal terhubung ke API harga emas: $e'))
-          .toList();
-    }
   }
 }

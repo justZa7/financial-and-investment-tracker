@@ -123,7 +123,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     child: ListView(
                       scrollDirection: Axis.horizontal,
                       children: [
-                        _sortChip('Default', _SortMode.newest),
+                        _sortChip('Terbaru', _SortMode.newest),
                         _sortChip('Nominal Terbesar', _SortMode.amountDesc),
                         _sortChip('Nominal Terkecil', _SortMode.amountAsc),
                       ],

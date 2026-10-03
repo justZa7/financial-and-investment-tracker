@@ -118,6 +118,21 @@ class CashFlowProvider extends ChangeNotifier {
 
     notifyListeners();
   }
+
+  /// Saldo akun saat ini (dipakai UI untuk menampilkan "Saldo tersedia").
+  double balanceOf(String accountId) => accountById(accountId).balance;
+
+  /// Transfer dana ke/dari akun kas TANPA mencatat entri transaksi kas
+  /// formal (bukan income/expense biasa) — dipakai saat beli/jual aset
+  /// investasi "Dari Kas" / "Masuk ke Kas", karena pergerakan dananya
+  /// sudah tercatat sebagai transaksi investasi di Portfolio & muncul di
+  /// History lewat log transaksi aset, jadi tidak perlu dobel dicatat di
+  /// sini. [delta] positif = menambah saldo, negatif = mengurangi saldo.
+  void adjustAccountBalance(String accountId, double delta) {
+    final account = accountById(accountId);
+    account.balance += delta;
+    notifyListeners();
+  }
 }
 
 class MonthlyFlow {

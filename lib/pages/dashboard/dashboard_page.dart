@@ -99,7 +99,7 @@ class DashboardPage extends StatelessWidget {
                 SectionHeader(icon: Icons.pie_chart_rounded, color: AppColors.matchaDarkest, title: 'Aset Anda'),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 124,
+                  height: 128,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [

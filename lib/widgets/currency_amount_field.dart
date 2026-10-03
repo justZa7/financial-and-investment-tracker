@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../utils/currency_input_formatter.dart';
 import '../utils/formatters.dart';
@@ -40,6 +41,16 @@ class CurrencyAmountFieldState extends State<CurrencyAmountField> {
   }
 
   void clear() => controller.clear();
+
+  /// Isi field ini secara programatik dengan nilai dalam IDR (dipaksa ke
+  /// mode currency IDR dulu kalau sebelumnya di USD) — dipakai tombol
+  /// "Gunakan harga ini" dari hasil fetch harga pasar live.
+  void setAmountInIdr(double value) {
+    setState(() {
+      currency = InputCurrency.idr;
+      controller.text = NumberFormat.decimalPattern('id_ID').format(value.round());
+    });
+  }
 
   @override
   void dispose() {

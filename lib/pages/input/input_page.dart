@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,10 +10,12 @@ import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../services/market_data_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_input_formatter.dart';
 import '../../utils/formatters.dart';
 import '../../widgets/currency_amount_field.dart';
+import '../../widgets/price_quote_card.dart';
 
 enum _InputTab { cash, invest, debt }
 
@@ -123,6 +127,10 @@ class _CashFlowFormState extends State<_CashFlowForm> {
                     .toList(),
                 onChanged: (v) => setState(() => _accountId = v),
               ),
+              if (_accountId != null) ...[
+                const SizedBox(height: 6),
+                _balanceCaption(context, provider.balanceOf(_accountId!)),
+              ],
               const SizedBox(height: 14),
               _label('Kategori'),
               DropdownButtonFormField<String>(
@@ -205,10 +213,90 @@ class _InvestmentFormState extends State<_InvestmentForm> {
   DateTime _date = DateTime.now();
   String? _error;
 
+  // --- Sumber/tujuan dana (BARU) ---
+  // false = "Dana Baru" (fresh money, TIDAK memotong saldo kas — perilaku
+  // lama) / "Tidak Masuk Kas" saat jual. true = dipindah dari/ke akun kas.
+  bool _useCashFunding = false;
+  String? _fundingAccountId;
+
+  // --- Live price preview (BARU) ---
+  Timer? _debounce;
+  AssetQuote? _quote;
+  bool _quoteLoading = false;
+  String? _quoteError;
+
+  @override
+  void initState() {
+    super.initState();
+    _tickerCtrl.addListener(_scheduleQuoteFetch);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _tickerCtrl.removeListener(_scheduleQuoteFetch);
+    _tickerCtrl.dispose();
+    _nameCtrl.dispose();
+    _qtyCtrl.dispose();
+    _feeCtrl.dispose();
+    _yieldCtrl.dispose();
+    super.dispose();
+  }
+
+  void _scheduleQuoteFetch() {
+    _debounce?.cancel();
+    final ticker = _tickerCtrl.text.trim();
+    if (ticker.isEmpty) {
+      setState(() {
+        _quote = null;
+        _quoteError = null;
+        _quoteLoading = false;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 700), _fetchQuote);
+  }
+
+  Future<void> _fetchQuote() async {
+    final ticker = _tickerCtrl.text.trim();
+    if (ticker.isEmpty) return;
+
+    setState(() {
+      _quoteLoading = true;
+      _quoteError = null;
+    });
+
+    if (_assetClass == AssetClass.moneyMarket) {
+      if (!mounted) return;
+      setState(() {
+        _quoteLoading = false;
+        _quote = null;
+        _quoteError = 'Reksadana Pasar Uang tidak punya API harga otomatis — isi Harga per Unit secara manual.';
+      });
+      return;
+    }
+
+    final quote = await MarketDataService.fetchQuote(ticker, _assetClass);
+    if (!mounted) return;
+
+    setState(() {
+      _quoteLoading = false;
+      _quote = quote;
+      _quoteError = quote == null
+          ? 'Harga untuk "$ticker" tidak ditemukan. Cek penulisan ticker, atau isi harga manual.'
+          : null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<PortfolioProvider>();
+    final cashFlow = context.watch<CashFlowProvider>();
     final exchangeRate = context.watch<ExchangeRateProvider>().rate;
+
+    if (_useCashFunding) {
+      _fundingAccountId ??= cashFlow.accounts.isNotEmpty ? cashFlow.accounts.first.id : null;
+    }
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -249,7 +337,21 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 items: AssetClass.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                     .toList(),
-                onChanged: (v) => setState(() => _assetClass = v!),
+                onChanged: (v) => setState(() {
+                  _assetClass = v!;
+                  _scheduleQuoteFetch();
+                }),
+              ),
+              // --- Live price preview: angka + sparkline chart seperti exchange ---
+              PriceQuoteCard(
+                isLoading: _quoteLoading,
+                quote: _quote,
+                errorMessage: _quoteError,
+                onUsePrice: () {
+                  if (_quote != null) {
+                    _priceFieldKey.currentState?.setAmountInIdr(_quote!.price);
+                  }
+                },
               ),
               const SizedBox(height: 14),
               _label('Qty'),
@@ -283,6 +385,51 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                   decoration: const InputDecoration(hintText: 'Contoh: 5.5'),
                 ),
               ],
+              const SizedBox(height: 20),
+              // --- Sumber/Tujuan Dana (BARU) ---
+              _label(_isBuy ? 'Sumber Dana' : 'Tujuan Dana Hasil Jual'),
+              SegmentedButton<bool>(
+                segments: [
+                  ButtonSegment(
+                    value: false,
+                    label: Text(_isBuy ? 'Dana Baru' : 'Tidak Masuk Kas', style: const TextStyle(fontSize: 12)),
+                    icon: const Icon(Icons.auto_awesome_outlined, size: 14),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    label: Text(_isBuy ? 'Dari Kas' : 'Masuk ke Kas', style: const TextStyle(fontSize: 12)),
+                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 14),
+                  ),
+                ],
+                selected: {_useCashFunding},
+                onSelectionChanged: (s) => setState(() => _useCashFunding = s.first),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _isBuy
+                    ? (_useCashFunding
+                        ? 'Saldo akun yang dipilih akan berkurang sebesar total transaksi.'
+                        : 'Dianggap dana baru dari luar — saldo akun kas TIDAK berkurang.')
+                    : (_useCashFunding
+                        ? 'Hasil penjualan akan ditambahkan ke saldo akun yang dipilih.'
+                        : 'Hasil penjualan TIDAK masuk ke akun kas manapun di app ini.'),
+                style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              if (_useCashFunding) ...[
+                const SizedBox(height: 12),
+                _label('Akun'),
+                DropdownButtonFormField<String>(
+                  value: _fundingAccountId,
+                  items: cashFlow.accounts
+                      .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
+                      .toList(),
+                  onChanged: (v) => setState(() => _fundingAccountId = v),
+                ),
+                if (_fundingAccountId != null) ...[
+                  const SizedBox(height: 6),
+                  _balanceCaption(context, cashFlow.balanceOf(_fundingAccountId!)),
+                ],
+              ],
               const SizedBox(height: 14),
               _label('Tanggal'),
               _dateField(_date, (d) => setState(() => _date = d)),
@@ -293,7 +440,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               const SizedBox(height: 24),
               FilledButton(
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                onPressed: () => _submit(provider),
+                onPressed: () => _submit(provider, cashFlow),
                 child: Text(_isBuy ? 'Simpan Transaksi Beli' : 'Simpan Transaksi Jual'),
               ),
             ],
@@ -303,7 +450,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
     );
   }
 
-  void _submit(PortfolioProvider provider) {
+  void _submit(PortfolioProvider provider, CashFlowProvider cashFlow) {
     if (!_formKey.currentState!.validate()) return;
     final qty = double.tryParse(_qtyCtrl.text.replaceAll(',', '.')) ?? 0;
     final price = _priceFieldKey.currentState!.amountInIdr;
@@ -313,10 +460,27 @@ class _InvestmentFormState extends State<_InvestmentForm> {
 
     setState(() => _error = null);
 
+    final ticker = _tickerCtrl.text.trim();
+
     if (_isBuy) {
+      final totalCost = (qty * price) + fee;
+
+      if (_useCashFunding) {
+        if (_fundingAccountId == null) {
+          setState(() => _error = 'Pilih akun sumber dana terlebih dahulu');
+          return;
+        }
+        final balance = cashFlow.balanceOf(_fundingAccountId!);
+        if (balance < totalCost) {
+          setState(() => _error =
+              'Saldo akun tidak cukup. Tersedia ${AppFormatters.rupiah(balance)}, dibutuhkan ${AppFormatters.rupiah(totalCost)}.');
+          return;
+        }
+      }
+
       provider.buyAsset(
-        ticker: _tickerCtrl.text.trim(),
-        name: _nameCtrl.text.trim().isEmpty ? _tickerCtrl.text.trim() : _nameCtrl.text.trim(),
+        ticker: ticker,
+        name: _nameCtrl.text.trim().isEmpty ? ticker : _nameCtrl.text.trim(),
         assetClass: _assetClass,
         qty: qty,
         pricePerUnit: price,
@@ -324,10 +488,18 @@ class _InvestmentFormState extends State<_InvestmentForm> {
         date: _date,
         annualYieldPercent: yieldPercent,
       );
+
+      if (_useCashFunding) {
+        cashFlow.adjustAccountBalance(_fundingAccountId!, -totalCost);
+      }
+
+      // Auto-update harga pasar tanpa user perlu klik refresh manual.
+      provider.fetchSinglePrice(ticker, _assetClass);
+
       _showSaved(context, 'Transaksi beli aset berhasil disimpan');
     } else {
       final err = provider.sellAsset(
-        ticker: _tickerCtrl.text.trim(),
+        ticker: ticker,
         qty: qty,
         pricePerUnit: price,
         fee: fee,
@@ -337,6 +509,18 @@ class _InvestmentFormState extends State<_InvestmentForm> {
         setState(() => _error = err);
         return;
       }
+
+      if (_useCashFunding) {
+        if (_fundingAccountId == null) {
+          setState(() => _error = 'Pilih akun tujuan dana terlebih dahulu');
+          return;
+        }
+        final proceeds = (qty * price) - fee;
+        cashFlow.adjustAccountBalance(_fundingAccountId!, proceeds);
+      }
+
+      provider.fetchSinglePrice(ticker, _assetClass);
+
       _showSaved(context, 'Transaksi jual aset berhasil disimpan');
     }
 
@@ -346,6 +530,10 @@ class _InvestmentFormState extends State<_InvestmentForm> {
     _priceFieldKey.currentState!.clear();
     _feeCtrl.text = '0';
     _yieldCtrl.clear();
+    setState(() {
+      _quote = null;
+      _quoteError = null;
+    });
   }
 }
 
@@ -452,6 +640,20 @@ Widget _label(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
     );
+
+Widget _balanceCaption(BuildContext context, double balance) {
+  final scheme = Theme.of(context).colorScheme;
+  return Row(
+    children: [
+      Icon(Icons.account_balance_wallet_outlined, size: 12, color: scheme.onSurfaceVariant),
+      const SizedBox(width: 4),
+      Text(
+        'Saldo tersedia: ${AppFormatters.rupiah(balance)}',
+        style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500),
+      ),
+    ],
+  );
+}
 
 Widget _dateField(DateTime date, ValueChanged<DateTime> onChanged) {
   return Builder(
