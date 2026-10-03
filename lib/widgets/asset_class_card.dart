@@ -81,12 +81,16 @@ class AssetClassCard extends StatelessWidget {
 
 class CashSummaryCard extends StatelessWidget {
   final double value;
-  const CashSummaryCard({super.key, required this.value});
+  final VoidCallback? onTap;
+  const CashSummaryCard({super.key, required this.value, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
       width: 148,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -114,6 +118,7 @@ class CashSummaryCard extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: scheme.onSurface),
           ),
         ],
+      ),
       ),
     );
   }

@@ -43,6 +43,15 @@ class CashFlowProvider extends ChangeNotifier {
   double get totalCashBalance =>
       _accounts.fold(0.0, (sum, a) => sum + a.balance);
 
+  /// Total saldo untuk satu tipe akun (Tunai/Bank/E-Wallet) — dipakai
+  /// halaman Detail Kas untuk breakdown per tipe.
+  double balanceByType(AccountType type) => _accounts
+      .where((a) => a.type == type)
+      .fold(0.0, (sum, a) => sum + a.balance);
+
+  List<AccountModel> accountsByType(AccountType type) =>
+      _accounts.where((a) => a.type == type).toList();
+
   // -------------------------------------------------------------------
   // AGGREGATE HELPERS
   // -------------------------------------------------------------------

@@ -20,6 +20,7 @@ import '../../widgets/section_header.dart';
 import '../../widgets/summary_card.dart';
 import '../../widgets/theme_mode_toggle.dart';
 import '../../models/asset_holding_model.dart';
+import '../cash/cash_detail_page.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -99,11 +100,17 @@ class DashboardPage extends StatelessWidget {
                 SectionHeader(icon: Icons.pie_chart_rounded, color: AppColors.matchaDarkest, title: 'Aset Anda'),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 128,
+                  height: 124,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
-                      CashSummaryCard(value: cashFlow.totalCashBalance),
+                      CashSummaryCard(
+                        value: cashFlow.totalCashBalance,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const CashDetailPage()),
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       for (final cls in AssetClass.values)
                         if (portfolio.valueByClass(cls) > 0) ...[
@@ -260,9 +267,17 @@ class DashboardPage extends StatelessWidget {
           const SizedBox(height: 18),
           Row(
             children: [
-              _miniStat('Kas & Bank', cashFlow.totalCashBalance),
-              _miniStat('Aset Investasi', portfolio.totalMarketValue),
-              _miniStat('Total Utang', debt.totalDebt),
+              _miniStat(
+                context,
+                'Kas & Bank',
+                cashFlow.totalCashBalance,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CashDetailPage()),
+                ),
+              ),
+              _miniStat(context, 'Aset Investasi', portfolio.totalMarketValue),
+              _miniStat(context, 'Total Utang', debt.totalDebt),
             ],
           ),
         ],
@@ -270,20 +285,32 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _miniStat(String label, double amountInIdr) {
+  Widget _miniStat(BuildContext context, String label, double amountInIdr, {VoidCallback? onTap}) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
+            if (onTap != null) ...[
+              const SizedBox(width: 3),
+              const Icon(Icons.chevron_right_rounded, size: 12, color: Colors.white60),
+            ],
+          ],
+        ),
+        const SizedBox(height: 3),
+        MoneyText(
+          amountInIdr: amountInIdr,
+          compact: true,
+          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
-          const SizedBox(height: 3),
-          MoneyText(
-            amountInIdr: amountInIdr,
-            compact: true,
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ],
-      ),
+      child: onTap == null
+          ? content
+          : InkWell(onTap: onTap, borderRadius: BorderRadius.circular(8), child: content),
     );
   }
 }

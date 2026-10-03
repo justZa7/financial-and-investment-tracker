@@ -117,8 +117,7 @@ class PriceQuoteCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: onUsePrice,
-              icon: const Icon(Icons.bolt_rounded, size: 15),
-              label: const Text('Gunakan Harga Ini', style: TextStyle(fontSize: 12)),
+              label: const Text('Gunakan Harga Saat Ini', style: TextStyle(fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(vertical: 8),
