@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/matcha_nav_bar.dart';
 import 'dashboard/dashboard_page.dart';
 import 'debts/debts_page.dart';
 import 'history/history_page.dart';
@@ -24,40 +25,23 @@ class _MainNavigationState extends State<MainNavigation> {
     HistoryPage(),
   ];
 
+  static const _navItems = [
+    MatchaNavItem(icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home'),
+    MatchaNavItem(icon: Icons.add_circle_outline_rounded, selectedIcon: Icons.add_circle_rounded, label: 'Input'),
+    MatchaNavItem(icon: Icons.pie_chart_outline_rounded, selectedIcon: Icons.pie_chart_rounded, label: 'Portfolio'),
+    MatchaNavItem(icon: Icons.handshake_outlined, selectedIcon: Icons.handshake_rounded, label: 'Utang'),
+    MatchaNavItem(icon: Icons.history_rounded, selectedIcon: Icons.history_rounded, label: 'Riwayat'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: MatchaNavBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
-            selectedIcon: Icon(Icons.add_circle_rounded),
-            label: 'Input',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline_rounded),
-            selectedIcon: Icon(Icons.pie_chart_rounded),
-            label: 'Portfolio',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.handshake_outlined),
-            selectedIcon: Icon(Icons.handshake_rounded),
-            label: 'Utang',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            selectedIcon: Icon(Icons.history_rounded),
-            label: 'Riwayat',
-          ),
-        ],
+        items: _navItems,
       ),
     );
   }

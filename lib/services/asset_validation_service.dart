@@ -86,11 +86,11 @@ class AssetValidationService {
   static String? hintFor(AssetClass assetClass) {
     switch (assetClass) {
       case AssetClass.equity:
-        return 'Gunakan kelipatan 1 lot = $equityLotSize lembar (contoh: 100, 200, 500)';
+        return 'Wajib kelipatan 1 lot = $equityLotSize lembar (contoh: 100, 200, 500)';
       case AssetClass.gold:
         return 'Minimal ${AppFormatters.decimal(minGoldGrams, fraction: 2)} gram';
       case AssetClass.crypto:
-        return 'Gunakan pecahan desimal (contoh: 0.015)';
+        return 'Boleh pecahan desimal, contoh: 0.015';
       case AssetClass.moneyMarket:
         return 'Minimal total pembelian ${AppFormatters.rupiah(minMoneyMarketAmount)}';
     }

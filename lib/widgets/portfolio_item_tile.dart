@@ -108,6 +108,27 @@ class PortfolioItemTile extends StatelessWidget {
                 _metric(context, 'Harga Pasar', null, amountInIdr: holding.marketPrice),
               ],
             ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.receipt_long_outlined, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 6),
+                  Text('Total Pembelian', style: TextStyle(fontSize: 11.5, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const Spacer(),
+                  MoneyText(
+                    amountInIdr: holding.costBasis,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(12),

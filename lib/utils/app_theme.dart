@@ -1,33 +1,51 @@
 import 'package:flutter/material.dart';
 
-/// Palet warna Matcha — dipakai sebagai basis kedua tema (light & dark).
+/// Palet warna "Matcha Latte" — hangat & creamy (bukan hijau pastel dingin),
+/// jadi basis identitas visual MatchaFin.
+///
+/// Nama field SENGAJA dipertahankan sama seperti versi sebelumnya (dipakai
+/// di puluhan widget lain) — yang berubah cuma NILAI warnanya, supaya efek
+/// re-theme ini otomatis menyebar ke seluruh app tanpa perlu sentuh file lain.
 class AppColors {
   AppColors._();
 
-  // --- Palet Matcha inti (sesuai permintaan) ---
-  static const matchaDarkest = Color(0xFF3B6B3C);
-  static const matchaDark = Color(0xFF5B9B56);
-  static const matchaMedium = Color(0xFF7ABF7C);
-  static const matchaLight = Color(0xFFA0D6A1);
-  static const matchaPale = Color(0xFFC3E1B5);
-  static const matchaBg = Color(0xFFE9F7E0);
+  // --- Palet Matcha Latte inti ---
+  // matchaDarkest : hijau matcha pekat (bubuk matcha diseduh kental) — dipakai
+  //                 untuk primary/brand color, ikon, teks penting.
+  // matchaDark    : hijau matcha inti (warna "badan" matcha latte) — warna
+  //                 utama untuk tombol & aksen brand.
+  // matchaMedium  : hijau sage medium — aksen sekunder.
+  // matchaLight   : hijau sage lembut — aksen tersier/highlight.
+  // matchaPale    : hijau sage pudar kehijauan-krem — dasar container/badge.
+  // matchaBg      : krem oat-milk hangat (BUKAN putih/mint pucat) — warna
+  //                 "susu"-nya matcha latte, dipakai scaffold background.
+  static const matchaDarkest = Color(0xFF34502B);
+  static const matchaDark = Color(0xFF5C7A45);
+  static const matchaMedium = Color(0xFF7D9B5E);
+  static const matchaLight = Color(0xFFA8BE8A);
+  static const matchaPale = Color(0xFFD9DEC2);
+  static const matchaBg = Color(0xFFF1EADA);
 
-  // --- Turunan untuk dark mode (belum ada di permintaan, diracik supaya
-  // tetap terasa "matcha" tapi nyaman dilihat di background gelap) ---
-  static const darkBg = Color(0xFF0F1A0E);
-  static const darkSurface = Color(0xFF17241A);
-  static const darkSurfaceAlt = Color(0xFF1F2E20);
-  static const darkOnSurfaceMuted = Color(0xFFA9C0A2);
+  /// Warna "foam" — krem keputihan hangat dipakai untuk Card/Surface di
+  /// light mode, menggantikan putih polos supaya nuansa latte kerasa
+  /// sampai ke permukaan kartu, bukan cuma di background.
+  static const latteFoam = Color(0xFFFBF6EB);
 
-  // --- Warna semantik (gain/loss & kelas aset), diselaraskan dengan nuansa
-  // matcha/earthy alih-alih biru/ungu terang seperti tema sebelumnya ---
+  // --- Dark mode: "iced matcha latte" di ruangan gelap ---
+  static const darkBg = Color(0xFF171C12);
+  static const darkSurface = Color(0xFF212819);
+  static const darkSurfaceAlt = Color(0xFF2B3421);
+  static const darkOnSurfaceMuted = Color(0xFFB7C4A0);
+
+  // --- Warna semantik (gain/loss & kelas aset), diselaraskan ke nuansa
+  // matcha-latte yang hangat alih-alih biru/ungu/hijau-mint terang ---
   static const gain = matchaDark;
-  static const loss = Color(0xFFC1502E); // terracotta hangat, kontras dengan hijau
+  static const loss = Color(0xFFB9502B); // terracotta hangat (karamel gosong)
   static const equity = matchaDarkest;
-  static const gold = Color(0xFFC9A227);
-  static const crypto = Color(0xFF7C6A9C); // plum pudar
-  static const moneyMarket = Color(0xFF4C8577); // sage teal
-  static const cash = Color(0xFF8A8677); // stone warm-gray
+  static const gold = Color(0xFFC49A3A); // karamel/gula aren
+  static const crypto = Color(0xFF8A6A4E); // mocha-coffee brown
+  static const moneyMarket = Color(0xFF5E8270); // sage-teal pekat
+  static const cash = Color(0xFF9C8E72); // taupe foam latte
 }
 
 class AppTheme {
@@ -39,16 +57,18 @@ class AppTheme {
       brightness: Brightness.light,
     ).copyWith(
       primary: AppColors.matchaDarkest,
-      onPrimary: Colors.white,
+      onPrimary: AppColors.latteFoam,
       primaryContainer: AppColors.matchaPale,
       onPrimaryContainer: AppColors.matchaDarkest,
       secondary: AppColors.matchaMedium,
       secondaryContainer: AppColors.matchaLight,
-      surface: Colors.white,
-      surfaceContainerHighest: AppColors.matchaPale.withOpacity(0.55),
-      onSurface: const Color(0xFF1E2A1C),
-      onSurfaceVariant: const Color(0xFF4F5D49),
-      outlineVariant: AppColors.matchaPale,
+      // Surface pakai warna "foam" hangat, BUKAN putih polos — di sinilah
+      // nuansa "latte" paling kerasa karena hampir semua Card pakai warna ini.
+      surface: AppColors.latteFoam,
+      surfaceContainerHighest: AppColors.matchaPale.withOpacity(0.6),
+      onSurface: const Color(0xFF28311F),
+      onSurfaceVariant: const Color(0xFF6B6350), // teks sekunder: coklat-taupe hangat
+      outlineVariant: const Color(0xFFE2D7BE), // border krem hangat
     );
 
     return ThemeData(
@@ -65,7 +85,7 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 3,
-        shadowColor: AppColors.matchaDarkest.withOpacity(0.10),
+        shadowColor: AppColors.matchaDarkest.withOpacity(0.12),
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -121,7 +141,7 @@ class AppTheme {
       secondaryContainer: AppColors.darkSurfaceAlt,
       surface: AppColors.darkSurface,
       surfaceContainerHighest: AppColors.darkSurfaceAlt,
-      onSurface: const Color(0xFFE3F0DE),
+      onSurface: const Color(0xFFE8E4D4),
       onSurfaceVariant: AppColors.darkOnSurfaceMuted,
       outlineVariant: AppColors.darkSurfaceAlt,
     );

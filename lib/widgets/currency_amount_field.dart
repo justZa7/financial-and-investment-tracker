@@ -14,6 +14,10 @@ class CurrencyAmountField extends StatefulWidget {
   final String hint;
   final double exchangeRate;
   final String? Function(String?)? validator;
+  /// Dipanggil tiap kali nilai (basis IDR) berubah — dipakai parent widget
+  /// yang perlu tahu nilai terkini secara live, misal untuk menghitung
+  /// ringkasan "Total Pembelian" yang update sambil user mengetik.
+  final ValueChanged<double>? onAmountChanged;
 
   const CurrencyAmountField({
     super.key,
@@ -21,6 +25,7 @@ class CurrencyAmountField extends StatefulWidget {
     required this.exchangeRate,
     this.hint = '',
     this.validator,
+    this.onAmountChanged,
   });
 
   @override
@@ -50,6 +55,7 @@ class CurrencyAmountFieldState extends State<CurrencyAmountField> {
       currency = InputCurrency.idr;
       controller.text = NumberFormat.decimalPattern('id_ID').format(value.round());
     });
+    widget.onAmountChanged?.call(amountInIdr);
   }
 
   @override
@@ -81,6 +87,7 @@ class CurrencyAmountFieldState extends State<CurrencyAmountField> {
               onSelectionChanged: (s) => setState(() {
                 currency = s.first;
                 controller.clear();
+                widget.onAmountChanged?.call(amountInIdr);
               }),
             ),
           ],
@@ -99,7 +106,9 @@ class CurrencyAmountFieldState extends State<CurrencyAmountField> {
             hintText: widget.hint,
           ),
           validator: widget.validator,
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(() {
+            widget.onAmountChanged?.call(amountInIdr);
+          }),
         ),
         if (currency == InputCurrency.usd && controller.text.isNotEmpty)
           Padding(

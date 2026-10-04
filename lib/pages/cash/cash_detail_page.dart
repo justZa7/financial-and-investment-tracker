@@ -81,7 +81,7 @@ class CashDetailPage extends StatelessWidget {
             const SizedBox(height: 14),
             for (final type in AccountType.values) ...[
               _typeGroup(context, provider, type, typeBalances[type] ?? 0),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
             ],
           ],
         ),
@@ -107,11 +107,11 @@ class CashDetailPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+        const Row(
             children: [
-              const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 16),
-              const SizedBox(width: 6),
-              const Text('Total Saldo Kas', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 16),
+              SizedBox(width: 6),
+              Text('Total Saldo Kas', style: TextStyle(color: Colors.white70, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 8),
@@ -200,7 +200,7 @@ class CashDetailPage extends StatelessWidget {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.matchaDarkest.withAlpha(5), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -228,23 +228,23 @@ class CashDetailPage extends StatelessWidget {
             const SizedBox(height: 10),
             EmptyState(icon: accountTypeIcon(type), title: 'Belum ada akun ${type.label.toLowerCase()}'),
           ] else ...[
-            // const Divider(height: 24),
-            // ...accounts.map((a) => Padding(
-            //       padding: const EdgeInsets.symmetric(vertical: 6),
-            //       child: Row(
-            //         children: [
-            //           Icon(Icons.circle, size: 5, color: scheme.onSurfaceVariant),
-            //           const SizedBox(width: 8),
-            //           Expanded(
-            //             child: Text(a.name, style: TextStyle(fontSize: 12.5, color: scheme.onSurface)),
-            //           ),
-            //           MoneyText(
-            //             amountInIdr: a.balance,
-            //             style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: scheme.onSurface),
-            //           ),
-            //         ],
-            //       ),
-            //     )),
+            const Divider(height: 24),
+            ...accounts.map((a) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.circle, size: 5, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(a.name, style: TextStyle(fontSize: 12.5, color: scheme.onSurface)),
+                      ),
+                      MoneyText(
+                        amountInIdr: a.balance,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: scheme.onSurface),
+                      ),
+                    ],
+                  ),
+                )),
           ],
         ],
       ),

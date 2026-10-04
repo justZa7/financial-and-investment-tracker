@@ -76,13 +76,13 @@ class _PortfolioPageState extends State<PortfolioPage> {
                         Icon(Icons.swipe_down_alt_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         const SizedBox(width: 4),
                         Text(
-                          'Tarik ke bawah untuk refresh harga ',
-                          style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant), textAlign: TextAlign.center,
+                          'Tarik ke bawah untuk refresh harga (Crypto/Saham/Emas otomatis)',
+                          style: TextStyle(fontSize: 10.5, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),
                     const SizedBox(height: 18),
-                    const SectionHeader(
+                    SectionHeader(
                       icon: Icons.filter_list_rounded,
                       color: AppColors.matchaDarkest,
                       title: 'Holding Anda',

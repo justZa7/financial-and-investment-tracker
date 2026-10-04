@@ -122,7 +122,7 @@ class _CashFlowFormState extends State<_CashFlowForm> {
               const SizedBox(height: 16),
               _label('Akun'),
               DropdownButtonFormField<String>(
-                initialValue: _accountId,
+                value: _accountId,
                 items: provider.accounts
                     .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
                     .toList(),
@@ -226,16 +226,26 @@ class _InvestmentFormState extends State<_InvestmentForm> {
   bool _quoteLoading = false;
   String? _quoteError;
 
+  double _livePriceIdr = 0;
+
   @override
   void initState() {
     super.initState();
     _tickerCtrl.addListener(_scheduleQuoteFetch);
+    // Qty & Fee ikut memicu rebuild supaya ringkasan "Total Pembelian" live
+    // selalu up-to-date tiap kali salah satu field-nya diketik.
+    _qtyCtrl.addListener(_refreshTotal);
+    _feeCtrl.addListener(_refreshTotal);
   }
+
+  void _refreshTotal() => setState(() {});
 
   @override
   void dispose() {
     _debounce?.cancel();
     _tickerCtrl.removeListener(_scheduleQuoteFetch);
+    _qtyCtrl.removeListener(_refreshTotal);
+    _feeCtrl.removeListener(_refreshTotal);
     _tickerCtrl.dispose();
     _nameCtrl.dispose();
     _qtyCtrl.dispose();
@@ -377,6 +387,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 hint: 'Harga eksekusi per unit',
                 exchangeRate: exchangeRate,
                 validator: (v) => (v == null || v.isEmpty) ? 'Harga wajib diisi' : null,
+                onAmountChanged: (v) => setState(() => _livePriceIdr = v),
               ),
               const SizedBox(height: 14),
               _label('Fee / Biaya Transaksi (Rp)'),
@@ -385,6 +396,8 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [ThousandsSeparatorInputFormatter()],
               ),
+              // --- Ringkasan Total Pembelian/Penjualan LIVE (BARU) ---
+              _buildTotalSummary(context),
               if (_isBuy && _assetClass == AssetClass.moneyMarket) ...[
                 const SizedBox(height: 14),
                 _label('Yield Tahunan (%) — khusus Reksadana Pasar Uang'),
@@ -456,6 +469,60 @@ class _InvestmentFormState extends State<_InvestmentForm> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Ringkasan "Total Pembelian" (Beli) / "Total Hasil Jual" (Jual) yang
+  /// terus live ter-update mengikuti Qty, Harga per Unit, dan Fee — supaya
+  /// user tahu persis berapa total uang yang akan keluar/masuk SEBELUM
+  /// menekan tombol Simpan, berlaku untuk semua kelas aset (saham, crypto,
+  /// emas, reksadana).
+  Widget _buildTotalSummary(BuildContext context) {
+    final qty = double.tryParse(_qtyCtrl.text.replaceAll(',', '.')) ?? 0;
+    final fee = CurrencyInputHelper.unformatIdr(_feeCtrl.text);
+    if (qty <= 0 || _livePriceIdr <= 0) return const SizedBox(height: 14);
+
+    final gross = qty * _livePriceIdr;
+    final total = _isBuy ? gross + fee : gross - fee;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.matchaDarkest.withAlpha(8),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.matchaDarkest.withAlpha(2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calculate_outlined, size: 14, color: AppColors.matchaDarkest),
+                const SizedBox(width: 6),
+                Text(
+                  _isBuy ? 'Total Pembelian' : 'Total Hasil Jual',
+                  style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              AppFormatters.rupiah(total),
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: scheme.onSurface),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${AppFormatters.decimal(qty, fraction: 4)} unit × ${AppFormatters.rupiah(_livePriceIdr)}'
+              '${fee > 0 ? ' ${_isBuy ? '+' : '-'} fee ${AppFormatters.rupiah(fee)}' : ''}',
+              style: TextStyle(fontSize: 10.5, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -562,6 +629,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
     setState(() {
       _quote = null;
       _quoteError = null;
+      _livePriceIdr = 0;
     });
   }
 }

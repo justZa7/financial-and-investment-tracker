@@ -35,7 +35,7 @@ class FinanceTrackerApp extends StatelessWidget {
       child: Consumer<ThemeModeProvider>(
         builder: (context, themeModeProvider, _) {
           return MaterialApp(
-            title: 'Personal Finance & Investment Tracker',
+            title: 'MatchaFin',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,

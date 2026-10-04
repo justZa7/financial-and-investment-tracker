@@ -55,14 +55,28 @@ class DashboardPage extends StatelessWidget {
         slivers: [
           SliverAppBar(
             floating: true,
-            title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.matchaDarkest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.eco_rounded, size: 16, color: AppColors.latteFoam),
+                ),
+                const SizedBox(width: 8),
+                const Text('MatchaFin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
             actions: const [
               ThemeModeToggle(),
               DisplayCurrencyToggle(),
             ],
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _netWorthCard(context, netWorth, cashFlow, portfolio, debt),
@@ -97,7 +111,7 @@ class DashboardPage extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // List Aset per kelas
-                SectionHeader(icon: Icons.pie_chart_rounded, color: AppColors.matchaDarkest, title: 'Aset Anda'),
+                const SectionHeader(icon: Icons.pie_chart_rounded, color: AppColors.matchaDarkest, title: 'Aset Anda'),
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 124,
