@@ -10,6 +10,7 @@ import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../services/asset_validation_service.dart';
 import '../../services/market_data_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/currency_input_formatter.dart';
@@ -121,7 +122,7 @@ class _CashFlowFormState extends State<_CashFlowForm> {
               const SizedBox(height: 16),
               _label('Akun'),
               DropdownButtonFormField<String>(
-                value: _accountId,
+                initialValue: _accountId,
                 items: provider.accounts
                     .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
                     .toList(),
@@ -333,7 +334,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               const SizedBox(height: 14),
               _label('Jenis Aset'),
               DropdownButtonFormField<AssetClass>(
-                value: _assetClass,
+                initialValue: _assetClass,
                 items: AssetClass.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                     .toList(),
@@ -358,8 +359,16 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               TextFormField(
                 controller: _qtyCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(hintText: 'Jumlah unit / lembar / gram'),
-                validator: (v) => (v == null || v.isEmpty) ? 'Qty wajib diisi' : null,
+                decoration: InputDecoration(
+                  hintText: 'Jumlah unit / lembar / gram',
+                  helperText: AssetValidationService.hintFor(_assetClass),
+                  helperMaxLines: 2,
+                ),
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'Qty wajib diisi';
+                  final parsed = double.tryParse(v.replaceAll(',', '.'));
+                  return AssetValidationService.validateQty(assetClass: _assetClass, qty: parsed);
+                },
               ),
               const SizedBox(height: 14),
               CurrencyAmountField(
@@ -419,7 +428,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 const SizedBox(height: 12),
                 _label('Akun'),
                 DropdownButtonFormField<String>(
-                  value: _fundingAccountId,
+                  initialValue: _fundingAccountId,
                   items: cashFlow.accounts
                       .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
                       .toList(),
@@ -451,14 +460,34 @@ class _InvestmentFormState extends State<_InvestmentForm> {
   }
 
   void _submit(PortfolioProvider provider, CashFlowProvider cashFlow) {
+    setState(() => _error = null);
+
+    // Validasi field-level (format angka, kelipatan lot saham, dll) —
+    // kalau gagal, form berhenti di sini dan TIDAK ADA apapun yang dikirim
+    // ke PortfolioProvider. Berlaku sama untuk semua kelas aset.
     if (!_formKey.currentState!.validate()) return;
+
     final qty = double.tryParse(_qtyCtrl.text.replaceAll(',', '.')) ?? 0;
     final price = _priceFieldKey.currentState!.amountInIdr;
     final fee = CurrencyInputHelper.unformatIdr(_feeCtrl.text);
     final yieldPercent = double.tryParse(_yieldCtrl.text.replaceAll(',', '.')) ?? 0;
-    if (qty <= 0 || price <= 0) return;
 
-    setState(() => _error = null);
+    if (price <= 0) {
+      setState(() => _error = 'Harga per Unit harus lebih besar dari 0');
+      return;
+    }
+
+    // Validasi nominal minimum (butuh qty & harga sekaligus, jadi baru bisa
+    // dicek di sini, bukan di validator field Qty) — khusus Reksadana.
+    final minAmountError = AssetValidationService.validateMinPurchaseAmount(
+      assetClass: _assetClass,
+      qty: qty,
+      pricePerUnit: price,
+    );
+    if (minAmountError != null) {
+      setState(() => _error = minAmountError);
+      return;
+    }
 
     final ticker = _tickerCtrl.text.trim();
 
