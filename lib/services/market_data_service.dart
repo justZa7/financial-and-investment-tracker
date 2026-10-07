@@ -62,19 +62,49 @@ class AssetQuote {
 class MarketDataService {
   MarketDataService._();
 
-  static const Map<String, String> _coingeckoIds = {
-    'BTC': 'bitcoin',
-    'ETH': 'ethereum',
-    'BNB': 'binancecoin',
-    'SOL': 'solana',
-    'USDT': 'tether',
-    'USDC': 'usd-coin',
-    'XRP': 'ripple',
-    'ADA': 'cardano',
-    'DOGE': 'dogecoin',
-    'AVAX': 'avalanche-2',
-    'DOT': 'polkadot',
+  // static const Map<String, String> _coingeckoIds = {
+  //   'BTC': 'bitcoin',
+  //   'ETH': 'ethereum',
+  //   'BNB': 'binancecoin',
+  //   'SOL': 'solana',
+  //   'USDT': 'tether',
+  //   'USDC': 'usd-coin',
+  //   'XRP': 'ripple',
+  //   'ADA': 'cardano',
+  //   'DOGE': 'dogecoin',
+  //   'AVAX': 'avalanche-2',
+  //   'DOT': 'polkadot',
+  // };
+
+static Map<String, String> _coingeckoIds = {};
+static bool _coinListLoaded = false;
+
+static Future<void> _loadCoinGeckoIds() async {
+  if (_coinListLoaded) return;
+
+  final uri = Uri.parse(
+    'https://api.coingecko.com/api/v3/coins/list',
+  );
+
+  final res = await http.get(uri).timeout(
+    const Duration(seconds: 10),
+  );
+
+  if (res.statusCode != 200) {
+    throw Exception(
+      'Gagal mengambil daftar coin CoinGecko: ${res.statusCode}',
+    );
+  }
+
+  final data = jsonDecode(res.body) as List<dynamic>;
+
+  _coingeckoIds = {
+    for (final coin in data)
+      (coin['symbol'] as String).toUpperCase(): coin['id'] as String,
   };
+
+  _coinListLoaded = true;
+}
 
   static const double _gramsPerTroyOunce = 31.1034768;
 
@@ -110,28 +140,65 @@ class MarketDataService {
     }
   }
 
+  // static Future<AssetQuote?> _fetchCryptoQuote(String ticker) async {
+  //   final id = _coingeckoIds[ticker.trim().toUpperCase()];
+  //   if (id == null) return null;
+
+  //   final uri = Uri.parse('https://api.coingecko.com/api/v3/coins/$id/market_chart?vs_currency=idr&days=7');
+  //   final res = await http.get(uri).timeout(const Duration(seconds: 10));
+  //   if (res.statusCode != 200) return null;
+
+  //   final data = jsonDecode(res.body) as Map<String, dynamic>;
+  //   final rawPrices = (data['prices'] as List?) ?? [];
+  //   if (rawPrices.isEmpty) return null;
+
+  //   final allPoints = rawPrices
+  //       .map((p) => (p as List)[1] as num)
+  //       .map((n) => n.toDouble())
+  //       .toList();
+
+  //   // Downsample supaya chart tetap ringan & halus (CoinGecko bisa kasih
+  //   // ratusan titik untuk rentang 7 hari).
+  //   final history = _downsample(allPoints, 24);
+  //   return AssetQuote(price: allPoints.last, history: history);
+  // }
+
   static Future<AssetQuote?> _fetchCryptoQuote(String ticker) async {
-    final id = _coingeckoIds[ticker.trim().toUpperCase()];
-    if (id == null) return null;
+  await _loadCoinGeckoIds();
 
-    final uri = Uri.parse('https://api.coingecko.com/api/v3/coins/$id/market_chart?vs_currency=idr&days=7');
-    final res = await http.get(uri).timeout(const Duration(seconds: 10));
-    if (res.statusCode != 200) return null;
+  final symbol = ticker.trim().toUpperCase();
+  final id = _coingeckoIds[symbol];
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final rawPrices = (data['prices'] as List?) ?? [];
-    if (rawPrices.isEmpty) return null;
+  if (id == null) return null;
 
-    final allPoints = rawPrices
-        .map((p) => (p as List)[1] as num)
-        .map((n) => n.toDouble())
-        .toList();
+  final uri = Uri.parse(
+    'https://api.coingecko.com/api/v3/coins/$id/market_chart'
+    '?vs_currency=idr&days=7',
+  );
 
-    // Downsample supaya chart tetap ringan & halus (CoinGecko bisa kasih
-    // ratusan titik untuk rentang 7 hari).
-    final history = _downsample(allPoints, 24);
-    return AssetQuote(price: allPoints.last, history: history);
-  }
+  final res = await http.get(uri).timeout(
+    const Duration(seconds: 10),
+  );
+
+  if (res.statusCode != 200) return null;
+
+  final data = jsonDecode(res.body) as Map<String, dynamic>;
+  final rawPrices = (data['prices'] as List?) ?? [];
+
+  if (rawPrices.isEmpty) return null;
+
+  final allPoints = rawPrices
+      .map((p) => (p as List)[1] as num)
+      .map((n) => n.toDouble())
+      .toList();
+
+  final history = _downsample(allPoints, 24);
+
+  return AssetQuote(
+    price: allPoints.last,
+    history: history,
+  );
+}
 
   static String _toYahooSymbol(String ticker) {
     final t = ticker.trim().toUpperCase();
