@@ -38,4 +38,4 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon/logo-matchafin.jpeg"
+  image_path: "assets/icon/logo-matchafin-v2.png"

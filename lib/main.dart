@@ -1,3 +1,4 @@
+import 'package:MatchaFin/pages/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -40,7 +41,7 @@ class FinanceTrackerApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: themeModeProvider.mode,
-            home: const MainNavigation(),
+            home: const SplashScreen(),
           );
         },
       ),
