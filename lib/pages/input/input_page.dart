@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../models/asset_holding_model.dart';
 import '../../models/cash_transaction_model.dart';
 import '../../models/debt_model.dart';
+import '../../providers/budget_provider.dart';
 import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
@@ -18,7 +19,7 @@ import '../../utils/formatters.dart';
 import '../../widgets/currency_amount_field.dart';
 import '../../widgets/price_quote_card.dart';
 
-enum _InputTab { cash, invest, debt }
+enum _InputTab { cash, transfer, invest, debt }
 
 class InputPage extends StatefulWidget {
   const InputPage({super.key});
@@ -44,16 +45,21 @@ class _InputPageState extends State<InputPage> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SegmentedButton<_InputTab>(
-              segments: const [
-                ButtonSegment(value: _InputTab.cash, label: Text('Kas'), icon: Icon(Icons.account_balance_wallet_outlined, size: 16)),
-                ButtonSegment(value: _InputTab.invest, label: Text('Investasi'), icon: Icon(Icons.show_chart, size: 16)),
-                ButtonSegment(value: _InputTab.debt, label: Text('Utang/Piutang'), icon: Icon(Icons.handshake_outlined, size: 16)),
+          // Row chip yang bisa di-scroll horizontal (BUKAN SegmentedButton):
+          // dengan 4 tab + label "Utang/Piutang" yang panjang, SegmentedButton
+          // memaksa semua segmen sama lebar dan berisiko overflow di layar
+          // sempit (pelajaran sama dengan perbaikan bottom nav bar).
+          SizedBox(
+            height: 40,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _tabChip(_InputTab.cash, 'Kas', Icons.account_balance_wallet_outlined),
+                _tabChip(_InputTab.transfer, 'Transfer', Icons.swap_horiz_rounded),
+                _tabChip(_InputTab.invest, 'Investasi', Icons.show_chart),
+                _tabChip(_InputTab.debt, 'Utang/Piutang', Icons.handshake_outlined),
               ],
-              selected: {_tab},
-              onSelectionChanged: (s) => setState(() => _tab = s.first),
             ),
           ),
           const SizedBox(height: 12),
@@ -62,6 +68,7 @@ class _InputPageState extends State<InputPage> {
               index: _tab.index,
               children: const [
                 _CashFlowForm(),
+                _TransferForm(),
                 _InvestmentForm(),
                 _DebtForm(),
               ],
@@ -70,6 +77,157 @@ class _InputPageState extends State<InputPage> {
         ],
       ),
     );
+  }
+
+  Widget _tabChip(_InputTab tab, String label, IconData icon) {
+    final selected = _tab == tab;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        avatar: Icon(icon, size: 15),
+        selected: selected,
+        onSelected: (_) => setState(() => _tab = tab),
+      ),
+    );
+  }
+}
+
+// =====================================================================
+// TAB BARU: TRANSFER ANTAR AKUN
+// =====================================================================
+class _TransferForm extends StatefulWidget {
+  const _TransferForm();
+
+  @override
+  State<_TransferForm> createState() => _TransferFormState();
+}
+
+class _TransferFormState extends State<_TransferForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  String? _fromAccountId;
+  String? _toAccountId;
+  DateTime _date = DateTime.now();
+  String? _error;
+
+  @override
+  void dispose() {
+    _amountCtrl.dispose();
+    _noteCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<CashFlowProvider>();
+    final ids = provider.accounts.map((a) => a.id).toSet();
+    // Akun yang dipilih bisa saja sudah dihapus lewat Kelola Akun -> reset.
+    if (_fromAccountId != null && !ids.contains(_fromAccountId)) _fromAccountId = null;
+    if (_toAccountId != null && !ids.contains(_toAccountId)) _toAccountId = null;
+    _fromAccountId ??= provider.accounts.isNotEmpty ? provider.accounts.first.id : null;
+    _toAccountId ??= provider.accounts.length > 1 ? provider.accounts[1].id : null;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+      children: [
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label('Dari Akun'),
+              DropdownButtonFormField<String>(
+                value: _fromAccountId,
+                items: provider.accounts
+                    .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
+                    .toList(),
+                onChanged: (v) => setState(() => _fromAccountId = v),
+              ),
+              if (_fromAccountId != null) ...[
+                const SizedBox(height: 6),
+                _balanceCaption(context, provider.balanceOf(_fromAccountId!)),
+              ],
+              const SizedBox(height: 16),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(color: AppColors.matchaPale, shape: BoxShape.circle),
+                  child: const Icon(Icons.arrow_downward_rounded, size: 18, color: AppColors.matchaDarkest),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _label('Ke Akun'),
+              DropdownButtonFormField<String>(
+                value: _toAccountId,
+                items: provider.accounts
+                    .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
+                    .toList(),
+                onChanged: (v) => setState(() => _toAccountId = v),
+              ),
+              if (_toAccountId != null) ...[
+                const SizedBox(height: 6),
+                _balanceCaption(context, provider.balanceOf(_toAccountId!)),
+              ],
+              const SizedBox(height: 14),
+              _label('Nominal (Rp)'),
+              TextFormField(
+                controller: _amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsSeparatorInputFormatter()],
+                decoration: const InputDecoration(hintText: 'Jumlah yang ditransfer'),
+                validator: (v) => (v == null || v.isEmpty) ? 'Nominal wajib diisi' : null,
+              ),
+              const SizedBox(height: 14),
+              _label('Tanggal'),
+              _dateField(_date, (d) => setState(() => _date = d)),
+              const SizedBox(height: 14),
+              _label('Catatan (opsional)'),
+              TextFormField(
+                controller: _noteCtrl,
+                decoration: const InputDecoration(hintText: 'Misal: pindah buat belanja bulanan'),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(_error!, style: const TextStyle(color: AppColors.loss, fontSize: 12)),
+              ],
+              const SizedBox(height: 24),
+              FilledButton(
+                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                onPressed: () => _submit(provider),
+                child: const Text('Transfer Sekarang'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _submit(CashFlowProvider provider) {
+    if (!_formKey.currentState!.validate()) return;
+    if (_fromAccountId == null || _toAccountId == null) return;
+    final amount = CurrencyInputHelper.unformatIdr(_amountCtrl.text);
+
+    setState(() => _error = null);
+
+    final err = provider.addTransfer(
+      fromAccountId: _fromAccountId!,
+      toAccountId: _toAccountId!,
+      amount: amount,
+      date: _date,
+      note: _noteCtrl.text,
+    );
+
+    if (err != null) {
+      setState(() => _error = err);
+      return;
+    }
+
+    _amountCtrl.clear();
+    _noteCtrl.clear();
+    _showSaved(context, 'Transfer berhasil disimpan');
   }
 }
 
@@ -98,6 +256,8 @@ class _CashFlowFormState extends State<_CashFlowForm> {
     final exchangeRate = context.watch<ExchangeRateProvider>().rate;
     final categories = provider.categoriesFor(_flowType);
     _categoryId ??= categories.isNotEmpty ? categories.first.id : null;
+    // Akun bisa dihapus lewat Kelola Akun -> pastikan pilihan masih valid.
+    if (_accountId != null && !provider.accounts.any((a) => a.id == _accountId)) _accountId = null;
     _accountId ??= provider.accounts.isNotEmpty ? provider.accounts.first.id : null;
 
     return ListView(
@@ -187,7 +347,42 @@ class _CashFlowFormState extends State<_CashFlowForm> {
 
     _amountFieldKey.currentState!.clear();
     _descCtrl.clear();
+
+    // Cek anggaran SETELAH transaksi tersimpan — kalau kategori ini sudah
+    // dikasih budget dan jadi over/dekat limit, kasih tahu user. Transaksi
+    // tetap tersimpan (budget cuma peringatan, bukan pembatas keras).
+    if (_flowType == CashFlowType.expense && mounted) {
+      final budget = context.read<BudgetProvider>().budgetForCategory(_categoryId!);
+      if (budget != null) {
+        final spent = provider.expenseThisMonthForCategory(_categoryId!);
+        final categoryName = provider.categoryById(_categoryId!).name;
+        if (spent > budget.monthlyLimit) {
+          _showBudgetWarning(
+            '⚠️ Anggaran "$categoryName" sudah lewat batas! '
+            'Terpakai ${AppFormatters.rupiah(spent)} dari ${AppFormatters.rupiah(budget.monthlyLimit)}.',
+          );
+          return;
+        } else if (spent >= budget.monthlyLimit * 0.8) {
+          _showBudgetWarning(
+            '"$categoryName" sudah ${(spent / budget.monthlyLimit * 100).toStringAsFixed(0)}% dari anggaran bulanan.',
+          );
+          return;
+        }
+      }
+    }
+
     _showSaved(context, 'Transaksi kas berhasil disimpan');
+  }
+
+  void _showBudgetWarning(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontSize: 12.5)),
+        backgroundColor: AppColors.gold,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 }
 
@@ -305,6 +500,9 @@ class _InvestmentFormState extends State<_InvestmentForm> {
     final cashFlow = context.watch<CashFlowProvider>();
     final exchangeRate = context.watch<ExchangeRateProvider>().rate;
 
+    if (_fundingAccountId != null && !cashFlow.accounts.any((a) => a.id == _fundingAccountId)) {
+      _fundingAccountId = null;
+    }
     if (_useCashFunding) {
       _fundingAccountId ??= cashFlow.accounts.isNotEmpty ? cashFlow.accounts.first.id : null;
     }
@@ -344,7 +542,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
               const SizedBox(height: 14),
               _label('Jenis Aset'),
               DropdownButtonFormField<AssetClass>(
-                initialValue: _assetClass,
+                value: _assetClass,
                 items: AssetClass.values
                     .map((c) => DropdownMenuItem(value: c, child: Text(c.label)))
                     .toList(),
@@ -441,7 +639,7 @@ class _InvestmentFormState extends State<_InvestmentForm> {
                 const SizedBox(height: 12),
                 _label('Akun'),
                 DropdownButtonFormField<String>(
-                  initialValue: _fundingAccountId,
+                  value: _fundingAccountId,
                   items: cashFlow.accounts
                       .map((a) => DropdownMenuItem(value: a.id, child: Text('${a.name} (${a.type.index})')))
                       .toList(),
@@ -492,9 +690,9 @@ class _InvestmentFormState extends State<_InvestmentForm> {
         width: double.infinity,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.matchaDarkest.withAlpha(8),
+          color: AppColors.matchaDarkest.withOpacity(0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.matchaDarkest.withAlpha(2)),
+          border: Border.all(color: AppColors.matchaDarkest.withOpacity(0.2)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

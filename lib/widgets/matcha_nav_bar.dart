@@ -41,14 +41,14 @@ class MatchaNavBar extends StatelessWidget {
       top: false,
       minimum: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       child: Container(
-        height: 70,
+        height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
           color: AppColors.matchaDarkest,
           borderRadius: BorderRadius.circular(40),
           boxShadow: [
             BoxShadow(
-              color: AppColors.matchaDarkest.withAlpha(35),
+              color: AppColors.matchaDarkest.withOpacity(0.35),
               blurRadius: 24,
               offset: const Offset(0, 10),
             ),
@@ -87,8 +87,8 @@ class _NavPill extends StatelessWidget {
           duration: const Duration(milliseconds: 260),
           curve: Curves.easeOutCubic,
           padding: EdgeInsets.symmetric(
-            horizontal: selected ? 14 : 11, 
-            vertical: 16
+            horizontal: selected ? 18 : 11, 
+            vertical: 15
           ),
           decoration: BoxDecoration(
             color: selected ? AppColors.latteFoam : Colors.transparent,
@@ -99,8 +99,8 @@ class _NavPill extends StatelessWidget {
             children: [
               Icon(
                 selected ? item.selectedIcon : item.icon,
-                size: 24,
-                color: selected ? AppColors.matchaDarkest : AppColors.latteFoam.withAlpha(55),
+                size: 20,
+                color: selected ? AppColors.matchaDarkest : AppColors.latteFoam.withOpacity(0.55),
               ),
               // Label hanya dirender saat item aktif; AnimatedSize bikin
               // transisi muncul/hilangnya halus, FittedBox jadi jaring

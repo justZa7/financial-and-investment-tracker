@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../providers/budget_provider.dart';
 import '../../providers/cashflow_provider.dart';
 import '../../providers/debt_provider.dart';
 import '../../providers/display_currency_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/portfolio_provider.dart';
+import '../../providers/savings_goal_provider.dart';
 import '../../services/calculation_service.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
@@ -20,7 +22,10 @@ import '../../widgets/section_header.dart';
 import '../../widgets/summary_card.dart';
 import '../../widgets/theme_mode_toggle.dart';
 import '../../models/asset_holding_model.dart';
+import '../budget/budget_page.dart';
 import '../cash/cash_detail_page.dart';
+import '../savings/savings_goal_page.dart';
+import '../settings/settings_page.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -30,6 +35,9 @@ class DashboardPage extends StatelessWidget {
     final cashFlow = context.watch<CashFlowProvider>();
     final portfolio = context.watch<PortfolioProvider>();
     final debt = context.watch<DebtProvider>();
+    final budgetProvider = context.watch<BudgetProvider>();
+    final goalProvider = context.watch<SavingsGoalProvider>();
+    final budgetProgress = budgetProvider.allProgress(cashFlow);
     final displayCurrency = context.watch<DisplayCurrencyProvider>().currency;
     final usdRate = context.watch<ExchangeRateProvider>().rate;
 
@@ -70,9 +78,17 @@ class DashboardPage extends StatelessWidget {
                 const Text('MatchaFin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ),
-            actions: const [
-              ThemeModeToggle(),
-              DisplayCurrencyToggle(),
+            actions: [
+              const ThemeModeToggle(),
+              const DisplayCurrencyToggle(),
+              IconButton(
+                tooltip: 'Pengaturan',
+                icon: const Icon(Icons.settings_rounded),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                ),
+              ),
             ],
           ),
           SliverPadding(
@@ -213,6 +229,47 @@ class DashboardPage extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Quick alert utang/piutang
+                if (budgetProgress.isNotEmpty) ...[
+                  SectionHeader(
+                    icon: Icons.pie_chart_outline_rounded,
+                    color: AppColors.gold,
+                    title: 'Anggaran Bulan Ini',
+                    trailing: TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const BudgetPage()),
+                      ),
+                      child: const Text('Lihat semua', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                      child: Column(
+                        children: budgetProgress.take(3).map((p) => _budgetRow(context, p, cashFlow)).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                if (goalProvider.goals.isNotEmpty) ...[
+                  SectionHeader(
+                    icon: Icons.savings_rounded,
+                    color: AppColors.moneyMarket,
+                    title: 'Target Tabungan',
+                    trailing: TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SavingsGoalPage()),
+                      ),
+                      child: const Text('Lihat semua', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...goalProvider.goals.take(2).map((g) => GoalCard(goal: g)),
+                  const SizedBox(height: 10),
+                ],
                 if (debt.dueSoonAlerts.isNotEmpty) ...[
                   const SectionHeader(
                     icon: Icons.warning_amber_rounded,
@@ -231,6 +288,41 @@ class DashboardPage extends StatelessWidget {
                   ),
                 ],
               ]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _budgetRow(BuildContext context, BudgetProgress p, CashFlowProvider cashFlow) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = p.isOverBudget ? AppColors.loss : (p.isNearLimit ? AppColors.gold : AppColors.gain);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  cashFlow.categoryById(p.budget.categoryId).name,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: scheme.onSurface),
+                ),
+              ),
+              Text('${p.percent.toStringAsFixed(0)}%',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: (p.percent / 100).clamp(0.0, 1.0).toDouble(),
+              minHeight: 6,
+              backgroundColor: scheme.surfaceContainerHighest,
+              color: color,
             ),
           ),
         ],

@@ -8,13 +8,21 @@ import '../services/market_data_service.dart';
 
 const _uuid = Uuid();
 
+/// Hasil simulasi replay transaksi satu ticker — dipakai untuk VALIDASI
+/// sebelum commit perubahan dari edit/hapus transaksi.
+typedef _ReplayResult = ({
+  double qty,
+  double avgPrice,
+  double realized,
+  DateTime? firstBuy,
+  List<AssetTransactionModel> updatedTxs,
+});
+
 class PortfolioProvider extends ChangeNotifier {
   final Map<String, AssetHoldingModel> _holdings = {}; // key: ticker
   final List<AssetTransactionModel> _transactions = [];
 
   // Tidak ada data yang di-seed -> portofolio mulai kosong.
-  // User membangun holding-nya sendiri lewat buyAsset()/sellAsset()
-  // dari form Input (Tab Investasi).
 
   List<AssetHoldingModel> get holdings =>
       List.unmodifiable(_holdings.values.where((h) => h.qty > 0.0000001 || h.realizedGainLoss != 0));
@@ -24,6 +32,15 @@ class PortfolioProvider extends ChangeNotifier {
 
   List<AssetTransactionModel> get transactions =>
       List.unmodifiable(_transactions..sort((a, b) => b.date.compareTo(a.date)));
+
+  AssetTransactionModel? transactionById(String id) {
+    for (final t in _transactions) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  AssetHoldingModel? holdingByTicker(String ticker) => _holdings[ticker.toUpperCase()];
 
   // -------------------------------------------------------------------
   // AGGREGATES
@@ -67,10 +84,9 @@ class PortfolioProvider extends ChangeNotifier {
 
   /// Trend nilai portofolio beberapa titik terakhir untuk line chart.
   /// Karena tidak ada historis harga pasar sungguhan, nilai diinterpolasi
-  /// secara proporsional dari cost basis kumulatif -> nilai pasar saat ini,
-  /// supaya grafik tetap representatif untuk kebutuhan demo/presentasi.
+  /// dari cost basis -> nilai pasar saat ini (representatif untuk demo).
   List<double> portfolioValueTrend({int points = 6}) {
-    if (activeHoldings.isEmpty) return List.filled(points, 0);
+    if (activeHoldings.isEmpty) return List.filled(points, 0.0);
     final currentValue = totalMarketValue;
     final startValue = totalCostBasis * 0.9;
     return List.generate(points, (i) {
@@ -95,43 +111,27 @@ class PortfolioProvider extends ChangeNotifier {
     double annualYieldPercent = 0,
   }) {
     final key = ticker.toUpperCase();
-    final existing = _holdings[key];
+    final isNew = !_holdings.containsKey(key);
+    final holding = _holdings.putIfAbsent(
+      key,
+      () => AssetHoldingModel(id: _uuid.v4(), ticker: key, name: name, assetClass: assetClass),
+    );
 
-    if (existing == null) {
-      _holdings[key] = AssetHoldingModel(
-        id: _uuid.v4(),
-        ticker: key,
-        name: name,
-        assetClass: assetClass,
-        qty: qty,
-        avgBuyPrice: pricePerUnit,
-        marketPrice: pricePerUnit,
-        annualYieldPercent: annualYieldPercent,
-        firstBuyDate: date,
-      );
-    } else {
-      final newAvg = CalculationService.weightedAveragePrice(
-        existingQty: existing.qty,
-        existingAvgPrice: existing.avgBuyPrice,
-        buyQty: qty,
-        buyPrice: pricePerUnit,
-      );
-      existing.qty += qty;
-      existing.avgBuyPrice = newAvg;
-      // Update yield tahunan kalau user isi nilai baru (misal manajer investasi
-      // mengubah rate yield produknya), pertahankan firstBuyDate paling awal.
-      if (annualYieldPercent > 0) {
-        existing.annualYieldPercent = annualYieldPercent;
-      }
-      existing.firstBuyDate ??= date;
-      if (date.isBefore(existing.firstBuyDate!)) {
-        existing.firstBuyDate = date;
-      }
-    }
+    holding.avgBuyPrice = CalculationService.weightedAveragePrice(
+      existingQty: holding.qty,
+      existingAvgPrice: holding.avgBuyPrice,
+      buyQty: qty,
+      buyPrice: pricePerUnit,
+    );
+    holding.qty += qty;
+    if (isNew) holding.marketPrice = pricePerUnit;
+    if (annualYieldPercent > 0) holding.annualYieldPercent = annualYieldPercent;
+    holding.firstBuyDate ??= date;
+    if (date.isBefore(holding.firstBuyDate!)) holding.firstBuyDate = date;
 
     _transactions.add(AssetTransactionModel(
       id: _uuid.v4(),
-      assetId: _holdings[key]!.id,
+      assetId: holding.id,
       ticker: key,
       assetClass: assetClass,
       type: AssetTxType.buy,
@@ -187,6 +187,152 @@ class PortfolioProvider extends ChangeNotifier {
     return null; // sukses
   }
 
+  // -------------------------------------------------------------------
+  // EDIT & HAPUS TRANSAKSI — pendekatan REPLAY
+  // -------------------------------------------------------------------
+  // Mengubah/menghapus satu transaksi lama bisa mempengaruhi avg price &
+  // realized gain SEMUA transaksi setelahnya untuk ticker yang sama (avg
+  // price bersifat kumulatif). Supaya hasilnya benar APAPUN transaksi yang
+  // diedit/dihapus (bukan cuma yang terakhir), seluruh transaksi ticker itu
+  // disimulasikan ULANG dari nol, urut tanggal, di [_simulateTicker] —
+  // divalidasi dulu (cegah oversell) SEBELUM di-commit lewat
+  // [_commitSimulation].
+  // -------------------------------------------------------------------
+
+  /// Simulasi di variabel sementara, TIDAK menyentuh state asli. Null kalau
+  /// urutan transaksi tidak valid (ada SELL yang qty-nya melebihi stok).
+  _ReplayResult? _simulateTicker(List<AssetTransactionModel> txsForTicker) {
+    final sorted = [...txsForTicker]..sort((a, b) => a.date.compareTo(b.date));
+    double qty = 0, avgPrice = 0, realized = 0;
+    DateTime? firstBuy;
+    final updated = <AssetTransactionModel>[];
+
+    for (final tx in sorted) {
+      if (tx.type == AssetTxType.buy) {
+        avgPrice = CalculationService.weightedAveragePrice(
+          existingQty: qty,
+          existingAvgPrice: avgPrice,
+          buyQty: tx.qty,
+          buyPrice: tx.pricePerUnit,
+        );
+        qty += tx.qty;
+        if (firstBuy == null || tx.date.isBefore(firstBuy)) firstBuy = tx.date;
+        updated.add(tx);
+      } else {
+        if (qty < tx.qty - 0.0000001) return null; // oversell -> invalid
+        final r = CalculationService.realizedGainLoss(
+          sellPrice: tx.pricePerUnit,
+          avgPrice: avgPrice,
+          sellQty: tx.qty,
+          fee: tx.fee,
+        );
+        qty -= tx.qty;
+        realized += r;
+        updated.add(AssetTransactionModel(
+          id: tx.id,
+          assetId: tx.assetId,
+          ticker: tx.ticker,
+          assetClass: tx.assetClass,
+          type: tx.type,
+          qty: tx.qty,
+          pricePerUnit: tx.pricePerUnit,
+          fee: tx.fee,
+          date: tx.date,
+          realizedGainLoss: r,
+        ));
+      }
+    }
+
+    return (qty: qty, avgPrice: avgPrice, realized: realized, firstBuy: firstBuy, updatedTxs: updated);
+  }
+
+  /// Terapkan hasil [_simulateTicker] ke state asli: tulis ulang record
+  /// transaksi SELL (realizedGainLoss-nya mungkin berubah) & update holding.
+  /// `annualYieldPercent`/`marketPrice` SENGAJA tidak disentuh — keduanya
+  /// independen dari histori transaksi, jadi otomatis tetap terjaga.
+  void _commitSimulation(String key, _ReplayResult result) {
+    for (final updatedTx in result.updatedTxs) {
+      final idx = _transactions.indexWhere((t) => t.id == updatedTx.id);
+      if (idx != -1) _transactions[idx] = updatedTx;
+    }
+
+    // Holding baru dihapus kalau SUDAH TIDAK ADA transaksi tersisa untuk
+    // ticker ini. Kalau transaksinya masih ada tapi qty=0 & realized=0
+    // (misal beli lalu jual di harga yang sama), holding tetap disimpan
+    // (tersembunyi dari getter `holdings`/`activeHoldings`) supaya kalau
+    // transaksinya diedit lagi dan qty jadi > 0, state-nya tetap konsisten.
+    if (result.updatedTxs.isEmpty) {
+      _holdings.remove(key);
+      return;
+    }
+
+    final holding = _holdings[key];
+    if (holding != null) {
+      holding.qty = result.qty;
+      holding.avgBuyPrice = result.avgPrice;
+      holding.realizedGainLoss = result.realized;
+      holding.firstBuyDate = result.firstBuy;
+    }
+  }
+
+  /// Edit satu transaksi Beli/Jual (qty/harga/fee/tanggal). Null = sukses,
+  /// String = pesan error (perubahan bikin transaksi jual jadi oversell —
+  /// perubahan DIBATALKAN, state tidak berubah sama sekali).
+  String? updateAssetTransaction({
+    required String transactionId,
+    required double qty,
+    required double pricePerUnit,
+    double fee = 0,
+    required DateTime date,
+  }) {
+    final old = transactionById(transactionId);
+    if (old == null) return 'Transaksi tidak ditemukan';
+
+    final candidate = AssetTransactionModel(
+      id: old.id,
+      assetId: old.assetId,
+      ticker: old.ticker,
+      assetClass: old.assetClass,
+      type: old.type,
+      qty: qty,
+      pricePerUnit: pricePerUnit,
+      fee: fee,
+      date: date,
+      realizedGainLoss: old.realizedGainLoss,
+    );
+
+    final others = _transactions.where((t) => t.ticker == old.ticker && t.id != transactionId).toList();
+    final result = _simulateTicker([...others, candidate]);
+    if (result == null) {
+      return 'Perubahan ini membuat jumlah jual melebihi stok yang dimiliki pada tanggal tersebut. '
+          'Coba kurangi qty jual lain dulu, atau edit transaksi beli yang terkait.';
+    }
+
+    // Transaksi yang diedit sendiri harus ikut diganti di daftar utama
+    // (kalau BUY, tidak ada di updatedTxs hasil perubahan nilai lainnya).
+    final index = _transactions.indexWhere((t) => t.id == transactionId);
+    _transactions[index] = candidate;
+    _commitSimulation(old.ticker, result);
+    notifyListeners();
+    return null;
+  }
+
+  /// Hapus satu transaksi Beli/Jual. False kalau transaksi tidak ditemukan
+  /// atau penghapusannya bikin urutan transaksi tidak valid.
+  bool deleteAssetTransaction(String transactionId) {
+    final removed = transactionById(transactionId);
+    if (removed == null) return false;
+
+    final remaining = _transactions.where((t) => t.ticker == removed.ticker && t.id != transactionId).toList();
+    final result = _simulateTicker(remaining);
+    if (result == null) return false;
+
+    _transactions.removeWhere((t) => t.id == transactionId);
+    _commitSimulation(removed.ticker, result);
+    notifyListeners();
+    return true;
+  }
+
   /// Update harga pasar manual -> memicu re-render nilai portofolio & chart
   void updateMarketPrice(String ticker, double newPrice) {
     final key = ticker.toUpperCase();
@@ -198,9 +344,7 @@ class PortfolioProvider extends ChangeNotifier {
   }
 
   /// Fetch harga pasar semua aset dari API publik (lihat MarketDataService
-  /// untuk detail dukungan per kelas aset). Hasil sukses langsung diterapkan
-  /// ke holding via updateMarketPrice(); hasil gagal dikembalikan apa adanya
-  /// supaya UI bisa menampilkan alasannya ke user.
+  /// untuk detail dukungan per kelas aset).
   Future<List<FetchPriceResult>> fetchMarketPricesFromApi() async {
     final results = await MarketDataService.fetchAll(activeHoldings);
     for (final r in results) {
@@ -212,11 +356,7 @@ class PortfolioProvider extends ChangeNotifier {
   }
 
   /// Fetch & terapkan harga pasar untuk SATU ticker saja — dipakai otomatis
-  /// setelah transaksi Beli/Jual disimpan dari form Input, supaya harga
-  /// pasar langsung ter-update TANPA user perlu menekan tombol refresh
-  /// manual. Diam-diam tidak melakukan apa-apa kalau API tidak mendukung
-  /// kelas asetnya (misal Reksadana) atau fetch gagal — tidak mengganggu
-  /// alur simpan transaksi yang sudah berhasil.
+  /// setelah transaksi Beli/Jual disimpan dari form Input.
   Future<void> fetchSinglePrice(String ticker, AssetClass assetClass) async {
     final quote = await MarketDataService.fetchQuote(ticker, assetClass);
     if (quote != null) {

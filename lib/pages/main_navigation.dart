@@ -28,7 +28,7 @@ class _MainNavigationState extends State<MainNavigation> {
   static const _navItems = [
     MatchaNavItem(icon: Icons.home_outlined, selectedIcon: Icons.home_rounded, label: 'Home'),
     MatchaNavItem(icon: Icons.add_circle_outline_rounded, selectedIcon: Icons.add_circle_rounded, label: 'Input'),
-    MatchaNavItem(icon: Icons.pie_chart_outline_rounded, selectedIcon: Icons.pie_chart_rounded, label: 'Portfolio'),
+    MatchaNavItem(icon: Icons.pie_chart_outline_rounded, selectedIcon: Icons.pie_chart_rounded, label: 'Aset'),
     MatchaNavItem(icon: Icons.handshake_outlined, selectedIcon: Icons.handshake_rounded, label: 'Utang'),
     MatchaNavItem(icon: Icons.history_rounded, selectedIcon: Icons.history_rounded, label: 'Riwayat'),
   ];

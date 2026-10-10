@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../models/account_model.dart';
 import '../models/category_model.dart';
 import '../models/cash_transaction_model.dart';
+import '../models/transfer_model.dart';
 import '../services/mock_data_service.dart';
 
 const _uuid = Uuid();
@@ -12,6 +13,7 @@ class CashFlowProvider extends ChangeNotifier {
   final List<AccountModel> _accounts = [];
   final List<CategoryModel> _categories = [];
   final List<CashTransactionModel> _transactions = [];
+  final List<TransferModel> _transfers = [];
 
   CashFlowProvider() {
     // Kategori & akun dasar tetap disiapkan (bukan "data dummy transaksi",
@@ -25,6 +27,8 @@ class CashFlowProvider extends ChangeNotifier {
   List<CategoryModel> get categories => List.unmodifiable(_categories);
   List<CashTransactionModel> get transactions =>
       List.unmodifiable(_transactions..sort((a, b) => b.date.compareTo(a.date)));
+  List<TransferModel> get transfers =>
+      List.unmodifiable(_transfers..sort((a, b) => b.date.compareTo(a.date)));
 
   List<CategoryModel> categoriesFor(CashFlowType type) => _categories
       .where((c) =>
@@ -39,6 +43,13 @@ class CashFlowProvider extends ChangeNotifier {
         (c) => c.id == id,
         orElse: () => _categories.first,
       );
+
+  CashTransactionModel? transactionById(String id) {
+    for (final t in _transactions) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
 
   double get totalCashBalance =>
       _accounts.fold(0.0, (sum, a) => sum + a.balance);
@@ -61,6 +72,19 @@ class CashFlowProvider extends ChangeNotifier {
             t.type == type &&
             t.date.year == month.year &&
             t.date.month == month.month)
+        .fold(0.0, (sum, t) => sum + t.amount);
+  }
+
+  /// Total pengeluaran bulan berjalan untuk SATU kategori — dipakai fitur
+  /// Budget untuk menghitung progress "terpakai / limit".
+  double expenseThisMonthForCategory(String categoryId) {
+    final now = DateTime.now();
+    return _transactions
+        .where((t) =>
+            t.type == CashFlowType.expense &&
+            t.categoryId == categoryId &&
+            t.date.year == now.year &&
+            t.date.month == now.month)
         .fold(0.0, (sum, t) => sum + t.amount);
   }
 
@@ -100,9 +124,9 @@ class CashFlowProvider extends ChangeNotifier {
   }
 
   // -------------------------------------------------------------------
-  // MUTATIONS
+  // MUTATIONS — Transaksi Kas (Pemasukan/Pengeluaran)
   // -------------------------------------------------------------------
-  void addTransaction({
+  String addTransaction({
     required CashFlowType type,
     required String accountId,
     required String categoryId,
@@ -120,27 +144,141 @@ class CashFlowProvider extends ChangeNotifier {
       description: description,
     );
     _transactions.add(tx);
+    accountById(accountId).balance += type == CashFlowType.income ? amount : -amount;
+    notifyListeners();
+    return tx.id;
+  }
 
-    final account = accountById(accountId);
-    account.balance +=
-        type == CashFlowType.income ? amount : -amount;
+  /// Edit transaksi kas yang sudah ada. Efek saldo transaksi LAMA dibalik
+  /// dulu dari akun lamanya, baru efek transaksi BARU diterapkan ke akun
+  /// barunya — supaya saldo selalu konsisten walau akun/jenis/nominal
+  /// diganti sekaligus.
+  bool updateTransaction({
+    required String id,
+    required CashFlowType type,
+    required String accountId,
+    required String categoryId,
+    required double amount,
+    required DateTime date,
+    String description = '',
+  }) {
+    final index = _transactions.indexWhere((t) => t.id == id);
+    if (index == -1) return false;
+
+    final old = _transactions[index];
+    accountById(old.accountId).balance -= old.type == CashFlowType.income ? old.amount : -old.amount;
+
+    _transactions[index] = CashTransactionModel(
+      id: id,
+      type: type,
+      accountId: accountId,
+      categoryId: categoryId,
+      amount: amount,
+      date: date,
+      description: description,
+    );
+    accountById(accountId).balance += type == CashFlowType.income ? amount : -amount;
 
     notifyListeners();
+    return true;
+  }
+
+  bool deleteTransaction(String id) {
+    final index = _transactions.indexWhere((t) => t.id == id);
+    if (index == -1) return false;
+
+    final tx = _transactions[index];
+    accountById(tx.accountId).balance -= tx.type == CashFlowType.income ? tx.amount : -tx.amount;
+    _transactions.removeAt(index);
+
+    notifyListeners();
+    return true;
+  }
+
+  // -------------------------------------------------------------------
+  // MUTATIONS — Transfer Antar Akun Sendiri
+  // -------------------------------------------------------------------
+  /// Null = sukses, String = pesan error (saldo kurang / akun sama).
+  String? addTransfer({
+    required String fromAccountId,
+    required String toAccountId,
+    required double amount,
+    required DateTime date,
+    String note = '',
+  }) {
+    if (fromAccountId == toAccountId) return 'Akun asal dan tujuan tidak boleh sama';
+    if (amount <= 0) return 'Nominal transfer harus lebih besar dari 0';
+    final fromBalance = balanceOf(fromAccountId);
+    if (fromBalance < amount) {
+      return 'Saldo tidak cukup (tersedia Rp${fromBalance.toStringAsFixed(0)})';
+    }
+
+    _transfers.add(TransferModel(
+      id: _uuid.v4(),
+      fromAccountId: fromAccountId,
+      toAccountId: toAccountId,
+      amount: amount,
+      date: date,
+      note: note,
+    ));
+    accountById(fromAccountId).balance -= amount;
+    accountById(toAccountId).balance += amount;
+    notifyListeners();
+    return null;
+  }
+
+  bool deleteTransfer(String id) {
+    final index = _transfers.indexWhere((t) => t.id == id);
+    if (index == -1) return false;
+
+    final transfer = _transfers[index];
+    // Balikkan efeknya: kembalikan ke akun asal, tarik lagi dari akun tujuan.
+    accountById(transfer.fromAccountId).balance += transfer.amount;
+    accountById(transfer.toAccountId).balance -= transfer.amount;
+    _transfers.removeAt(index);
+
+    notifyListeners();
+    return true;
   }
 
   /// Saldo akun saat ini (dipakai UI untuk menampilkan "Saldo tersedia").
   double balanceOf(String accountId) => accountById(accountId).balance;
 
-  /// Transfer dana ke/dari akun kas TANPA mencatat entri transaksi kas
-  /// formal (bukan income/expense biasa) — dipakai saat beli/jual aset
-  /// investasi "Dari Kas" / "Masuk ke Kas", karena pergerakan dananya
-  /// sudah tercatat sebagai transaksi investasi di Portfolio & muncul di
-  /// History lewat log transaksi aset, jadi tidak perlu dobel dicatat di
-  /// sini. [delta] positif = menambah saldo, negatif = mengurangi saldo.
+  /// Ubah saldo akun TANPA mencatat entri transaksi kas formal — dipakai
+  /// saat beli/jual aset "Dari Kas"/"Masuk ke Kas" dan kontribusi Savings
+  /// Goal, karena pergerakan dananya sudah tercatat di modul masing-masing.
+  /// [delta] positif = menambah saldo, negatif = mengurangi saldo.
   void adjustAccountBalance(String accountId, double delta) {
     final account = accountById(accountId);
     account.balance += delta;
     notifyListeners();
+  }
+
+  // -------------------------------------------------------------------
+  // MUTATIONS — Kelola Akun
+  // -------------------------------------------------------------------
+  String addAccount({required String name, required AccountType type, double balance = 0}) {
+    final account = AccountModel(id: _uuid.v4(), name: name, type: type, balance: balance);
+    _accounts.add(account);
+    notifyListeners();
+    return account.id;
+  }
+
+  void renameAccount(String accountId, String newName) {
+    accountById(accountId).name = newName;
+    notifyListeners();
+  }
+
+  /// Hapus akun. Diizinkan walau saldo belum nol (UI memberi peringatan
+  /// dulu) — transaksi lama yang mereferensi akun ini tidak dihapus,
+  /// `accountById()` fallback ke akun pertama (graceful, tidak crash).
+  /// Tidak boleh menghapus akun TERAKHIR supaya form Input tetap punya
+  /// minimal satu pilihan akun. Mengembalikan false kalau ditolak.
+  bool deleteAccount(String accountId) {
+    if (_accounts.length <= 1) return false;
+    _accounts.removeWhere((a) => a.id == accountId);
+    notifyListeners();
+    return true;
   }
 }
 

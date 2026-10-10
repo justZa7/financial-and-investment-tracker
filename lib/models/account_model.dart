@@ -15,7 +15,7 @@ extension AccountTypeLabel on AccountType {
 
 class AccountModel {
   final String id;
-  final String name;
+  String name;
   final AccountType type;
   double balance;
 

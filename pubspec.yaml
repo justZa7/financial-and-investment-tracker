@@ -1,4 +1,4 @@
-name: MatchaFin
+name: finance_tracker
 description: "Personal Finance & Investment Tracker - Catat arus kas, portofolio investasi lintas aset, dan utang-piutang."
 publish_to: 'none'
 version: 1.0.0+1
@@ -26,16 +26,19 @@ dependencies:
   # Generate ID unik untuk entitas lokal (transaksi, aset, utang, dll)
   uuid: ^4.4.0
 
+  # Penyimpanan preferensi ringan (PIN hash, status lock, status onboarding)
+  shared_preferences: ^2.3.2
+
+  # Autentikasi biometrik (fingerprint/Face ID) untuk fitur kunci aplikasi
+  local_auth: ^2.3.0
+
+  # Hashing PIN sebelum disimpan (jangan pernah simpan PIN mentah)
+  crypto: ^3.0.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
-
-flutter_launcher_icons:
-  android: "launcher_icon"
-  ios: true
-  image_path: "assets/icon/logo-matchafin-v2.png"

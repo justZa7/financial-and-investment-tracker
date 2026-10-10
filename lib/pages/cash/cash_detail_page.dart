@@ -101,17 +101,17 @@ class CashDetailPage extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
-          BoxShadow(color: AppColors.matchaDarkest.withAlpha(25), blurRadius: 20, offset: const Offset(0, 8)),
+          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        const Row(
+          Row(
             children: [
-              Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 16),
-              SizedBox(width: 6),
-              Text('Total Saldo Kas', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Icon(Icons.account_balance_wallet_rounded, color: Colors.white70, size: 16),
+              const SizedBox(width: 6),
+              const Text('Total Saldo Kas', style: TextStyle(color: Colors.white70, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 8),
@@ -200,7 +200,7 @@ class CashDetailPage extends StatelessWidget {
         color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: AppColors.matchaDarkest.withAlpha(5), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.matchaDarkest.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, 4)),
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -211,7 +211,7 @@ class CashDetailPage extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(color: color.withAlpha(12), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: color.withOpacity(0.12), shape: BoxShape.circle),
                 child: Icon(accountTypeIcon(type), size: 16, color: color),
               ),
               const SizedBox(width: 10),

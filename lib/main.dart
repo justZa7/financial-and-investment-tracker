@@ -1,14 +1,16 @@
-import 'package:MatchaFin/pages/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
-import 'pages/main_navigation.dart';
+import 'pages/app_gate.dart';
+import 'providers/budget_provider.dart';
 import 'providers/cashflow_provider.dart';
 import 'providers/debt_provider.dart';
 import 'providers/display_currency_provider.dart';
 import 'providers/exchange_rate_provider.dart';
 import 'providers/portfolio_provider.dart';
+import 'providers/savings_goal_provider.dart';
+import 'providers/security_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'utils/app_theme.dart';
 
@@ -18,7 +20,8 @@ Future<void> main() async {
   runApp(const FinanceTrackerApp());
 }
 
-/// Aplikasi langsung masuk ke Dashboard/Home — TANPA Login/Authentication.
+/// Alur awal: Onboarding (sekali) -> Lock Screen (kalau PIN aktif) -> Dashboard.
+/// Tidak ada login/akun — semua dikelola lokal di device.
 class FinanceTrackerApp extends StatelessWidget {
   const FinanceTrackerApp({super.key});
 
@@ -29,6 +32,9 @@ class FinanceTrackerApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CashFlowProvider()),
         ChangeNotifierProvider(create: (_) => PortfolioProvider()),
         ChangeNotifierProvider(create: (_) => DebtProvider()),
+        ChangeNotifierProvider(create: (_) => BudgetProvider()),
+        ChangeNotifierProvider(create: (_) => SavingsGoalProvider()),
+        ChangeNotifierProvider(create: (_) => SecurityProvider()),
         ChangeNotifierProvider(create: (_) => ExchangeRateProvider()),
         ChangeNotifierProvider(create: (_) => DisplayCurrencyProvider()),
         ChangeNotifierProvider(create: (_) => ThemeModeProvider()),
@@ -41,7 +47,7 @@ class FinanceTrackerApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: themeModeProvider.mode,
-            home: const SplashScreen(),
+            home: const AppGate(),
           );
         },
       ),

@@ -16,6 +16,15 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _textFadeAnimation;
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    precacheImage(
+      const AssetImage('assets/icon/logo-matchafin-v2.png'),
+      context,
+    );
+  }
+
+  @override
   void initState() {
     super.initState();
 
@@ -118,7 +127,7 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     SizedBox(height: 6),
                     Text(
-                      'Track your money, track your investment', // (Opsional) Slogan/subtitle
+                      'Track your money, track your investment',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey,
