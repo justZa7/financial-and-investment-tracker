@@ -7,7 +7,7 @@ import '../utils/app_theme.dart';
 /// dibanding cuma Text biasa.
 class SectionHeader extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final IconData? icon;
   final Color color;
   final Widget? trailing;
 

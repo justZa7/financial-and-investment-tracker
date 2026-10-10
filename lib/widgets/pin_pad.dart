@@ -53,10 +53,10 @@ class PinNumPad extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: row.map((key) {
-              if (key.isEmpty) return const SizedBox(width: 72, height: 64);
+              if (key.isEmpty) return const SizedBox(width: 122, height: 64);
               if (key == 'back') {
                 return SizedBox(
-                  width: 72,
+                  width: 122,
                   height: 64,
                   child: IconButton(
                     onPressed: onBackspace,
@@ -65,7 +65,7 @@ class PinNumPad extends StatelessWidget {
                 );
               }
               return SizedBox(
-                width: 72,
+                width: 122,
                 height: 64,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(36),

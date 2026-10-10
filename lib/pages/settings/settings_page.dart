@@ -88,7 +88,7 @@ class SettingsPage extends StatelessWidget {
                   onChanged: (v) => context.read<SecurityProvider>().setBiometricEnabled(v),
                   title: const Text('Biometric (Fingerprint/Face ID)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   subtitle: const Text('Pakai sidik jari/wajah sebagai alternatif PIN', style: TextStyle(fontSize: 12)),
-                  activeColor: AppColors.matchaDarkest,
+                  activeThumbColor: AppColors.matchaDarkest,
                   tileColor: scheme.surface,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 )
@@ -141,7 +141,7 @@ class SettingsPage extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+          decoration: BoxDecoration(color: color.withAlpha(12), borderRadius: BorderRadius.circular(10)),
           child: Icon(icon, size: 18, color: color),
         ),
         title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
